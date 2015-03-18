@@ -1,0 +1,81 @@
+.mainfont,td,input,select {
+	font-family: Verdana, Geneva, sans-serif;
+	font-size: 85%;
+	color: 222222;
+}
+a:hover, a:link, a:visited {
+	color: 333333;
+}
+
+.hiddenBlock {
+	display:none;
+}
+.alignwidth {
+	width:100%;
+}
+table.inputTable td {
+	width:400px;
+}
+
+#idTableShowMeConsole td {
+	width:150px;
+}
+#idTableShowMeConsole {
+	width:200px;
+	
+}
+#idTableShowMeHow {
+	height:200px;
+}
+#idjavascript, #idjavascript li,#idjavascript a,#idjavascript a:hover,#idjavascript a:link ,#idjavascript a:visited  {
+ font-size:12px;
+ color: #444444;
+ list-style-type: none;
+}
+.inputSpecific {
+
+}
+.fulltd {
+	background-color:green;
+	width:20px;
+	height:10px;
+	margin:0px;
+}
+.inctd {
+	background-color:lightgreen;
+	width:20px;
+	height:10px;
+	margin:0px;
+}
+.totalTopLine {
+	border-top: 2px solid #444444;
+}
+.alert {
+	color: #E64040;
+}
+.monthspan {
+	width:30px;
+	display:inline-block;
+}
+.weekspan {
+	width:26px;
+	display:inline-block;
+}
+.laststeps {
+	font-size:large;
+}
+.widthpoint {
+	width:150px;
+}
+.widthpointvisual {
+	width:130px;
+}
+.widthfile {
+	width:150px;
+}
+.widthdate {
+	width:150px;
+}
+.widthsize {
+	width: 150px;
+}

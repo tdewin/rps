@@ -1,0 +1,1191 @@
+<html>
+<head>
+<title>Restore Point Simulator</title>
+<link rel="stylesheet" type="text/css" href="pureengine.css">
+<link href="jquery-ui.css" rel="stylesheet">
+<script>
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+
+  ga('create', 'UA-58327247-1', 'auto');
+  ga('send', 'pageview');
+
+</script>
+</head>
+<body class="mainfont">
+
+<script src="jquery-2.0.1.min.js"></script>
+<script src="jquery-ui.min.js"></script>
+<script src="URI.js"></script>
+<script src="moment.min.js"></script>
+<script src="filesize-mod.js"></script>
+<script src="pureengine.js"></script>
+
+<script>
+function showInputs(style)
+{
+	showInputsWithDefaults(style,true)
+}
+function showInputsWithDefaults(style,forceDefaults)
+{
+	
+	$( ".inputSpecific" ).hide()
+	//allows the scenario function to override everything, even on style
+	
+	
+	if(forceDefaults)
+	{
+		var gsv = GUIStateVariables()
+		$.each(gsv.mappings,function(key,mapping) {
+			if(mapping.applicable == 0 || mapping.applicable == style)
+			{
+				mapping.setDefault()
+			}
+		});
+		
+		
+	}
+	else
+	{
+		//if the style change we really need to reset overrides even if it is not visible to the end user
+		var overrides = (new scenario("",style)).getOverrides()
+		$("#idInput").val(overrides)
+	}
+	
+	if(style == 1)
+	{
+		$( "#idDivForward" ).show()
+	}
+	else if (style == 2)
+	{
+		$( "#idDivReverse" ).show()
+	}
+	else if (style == 3)
+	{
+		$( "#idDivBCJ" ).show()
+	}
+	
+}
+function getSelScen()
+{
+	var scenario = GUIStateVariables().scenarios[$("#scenariosSelect").val()]
+	return scenario
+}
+function saveStr()
+{
+	var gsv = GUIStateVariables()
+	var uriarr = []
+	
+	var currentscen = getSelScen()
+	
+	var uri = new URI();
+	uri.search(""); 
+	
+	$.each(gsv.mappings,function(key,mapping) {
+		var uriadd = mapping.getURIVar()
+		if(uriadd && (mapping.applicable == 0 || mapping.applicable == currentscen.style ))
+		{
+			uriarr.push(uriadd)
+		}
+	})
+	uriarr.push("e")
+	$("#idURLStr").val(uri+"?"+uriarr.join("&"))
+}
+function scenario(name,style)
+{
+	this.name = name
+	this.style = style
+	this.retention = 14
+	this.size = 1000
+	this.compression = 50
+	this.changeRate = 10
+	this.synthetic = [0,0,0,0,0,0,0]
+	this.activeWeeklyInc = [0,0,0,0,0,0,0]
+	this.activeWeeklyRev = [0,0,0,0,0,0,0]
+	this.activeMonthlyInc = [0,0,0,0,0,0,0,0,0,0,0,0]
+	this.activeMonthlyRev = [0,0,0,0,0,0,0,0,0,0,0,0]
+	this.GFS = {"W":0,"M":0,"Q":0,"Y":0}
+	this.interval = "D"
+	this.hiddenOverrides = ""
+	this.getOverrides = function() {
+		var overrides = "gsv.pureEngine.loglevel = 0"
+		if(this.hiddenOverrides != "")
+		{
+			overrides += this.hiddenOverrides
+		}
+		return overrides
+	}
+	this.isURIScenario = false
+}
+function scenarios()
+{
+	var scenariosLocal =  {}
+	
+	var scenarioObj = new scenario("Forever Incremental",1)
+	scenariosLocal[scenarioObj.name] = scenarioObj
+	
+	scenarioObj = new scenario("Incremental Weekly Synthetic",1)
+	scenarioObj.synthetic[5] = 1
+	scenariosLocal[scenarioObj.name] = scenarioObj
+	
+	scenarioObj = new scenario("Incremental Weekly Active Full",1)
+	scenarioObj.activeWeeklyInc[5] = 1
+	scenariosLocal[scenarioObj.name] = scenarioObj
+	
+	scenarioObj = new scenario("Incremental Monthly Active Full",1)
+	scenarioObj.activeMonthlyInc = [1,1,1,1,1,1,1,1,1,1,1,1]
+	scenariosLocal[scenarioObj.name] = scenarioObj
+	
+	scenarioObj = new scenario("Reverse Incremental",2)
+	scenariosLocal[scenarioObj.name] = scenarioObj
+	
+	scenarioObj = new scenario("Reverse Incremental  Weekly Active Full",2)
+	scenarioObj.activeWeeklyRev[5] = 1
+	scenariosLocal[scenarioObj.name] = scenarioObj
+	
+	scenarioObj = new scenario("Reverse Incremental  Monthly Active Full",2)
+	scenarioObj.activeMonthlyRev  = [1,1,1,1,1,1,1,1,1,1,1,1]
+	scenariosLocal[scenarioObj.name] = scenarioObj
+	
+	scenarioObj = new scenario("Backup Copy Job",3)
+	scenarioObj.retention = 7
+	scenariosLocal[scenarioObj.name] = scenarioObj
+	
+	scenarioObj = new scenario("Backup Copy Job GFS 4W/4M/4Q/1Y",3)
+	scenarioObj.retention = 7
+	scenarioObj.GFS = {"W":4,"M":4,"Q":4,"Y":1}
+	scenariosLocal[scenarioObj.name] = scenarioObj
+	
+	return scenariosLocal
+}
+function mapping(id,variable,applicable)
+{
+	this.id = id
+	this.variable = variable
+	this.puremap = variable
+	this.applicable = applicable
+	this.urivar = 0
+	
+	this.getURIVar = function()
+	{
+		var urivar = this.urivar
+		if(urivar != 0)
+		{
+			urivar = urivar+"="+$(this.id).val()
+		}
+		return urivar
+	}
+	
+	this.convert = function() {
+		return
+	}
+	this.setDefault = function() {
+		return
+	}
+}
+function mappings()
+{
+	var mappingsLocal = {}
+	
+	var mappingObj = new mapping("#scenariosSelect","scenario",-1)
+	mappingObj.convert = function() {
+		var scenario = GUIStateVariables().scenarios[$(this.id).val()]
+		return scenario
+	}
+	mappingsLocal[mappingObj.variable] = mappingObj
+	
+	mappingObj = new mapping("#idStyle","style",0)
+	mappingObj.urivar = "m"
+	mappingObj.convert = function() { 
+		return parseInt($(this.id).val())
+	}
+	mappingObj.setDefault = function() {
+		var scenario = mappingsLocal["scenario"].convert()
+		 $("#idStyle option[value='"+scenario.style+"']").prop('selected',true);
+	}
+	mappingsLocal[mappingObj.variable] = mappingObj
+	
+	mappingObj = new mapping("#idInput","overrides",0)
+	mappingObj.convert = function() { 
+		return $(this.id).val()
+	}
+	mappingObj.setDefault = function() {
+		var scenario = mappingsLocal["scenario"].convert()
+		 $(this.id).val(scenario.getOverrides())
+	}
+	mappingsLocal[mappingObj.variable] = mappingObj
+		
+	
+	mappingObj = new mapping("#idData","size",0)
+	mappingObj.urivar = "s"
+	mappingObj.convert = function() {
+		return parseInt($(this.id).val())*1024*1024*1024
+	}
+	mappingObj.setDefault = function() {
+		var scenario = mappingsLocal["scenario"].convert()
+		$(this.id).val(scenario.size)
+	}
+	mappingsLocal[mappingObj.variable] = mappingObj
+	
+	mappingObj = new mapping("#idRP","retention",0)
+	mappingObj.urivar = "r"
+	mappingObj.convert = function() {
+		return parseInt($(this.id).val())
+	}
+	mappingObj.setDefault = function() {
+		var scenario = mappingsLocal["scenario"].convert()
+		 $(this.id).val(scenario.retention)
+	}
+	mappingsLocal[mappingObj.variable] = mappingObj	
+
+	mappingObj = new mapping("#idCompression","compression",0)
+	mappingObj.urivar = "c"
+	mappingObj.convert = function() {
+		return parseInt($(this.id).val())
+	}
+	mappingObj.setDefault = function() {
+		var scenario = mappingsLocal["scenario"].convert()
+		 $(this.id).val(scenario.compression)
+	}
+	mappingsLocal[mappingObj.variable] = mappingObj	
+	
+	mappingObj = new mapping("#idDelta","changeRate",0)
+	mappingObj.urivar = "d"
+	mappingObj.convert = function() {
+		return parseInt($(this.id).val())
+	}
+	mappingObj.setDefault = function() {
+		var scenario = mappingsLocal["scenario"].convert()
+		 $(this.id).val(scenario.changeRate)
+	}
+	mappingsLocal[mappingObj.variable] = mappingObj	
+	
+	mappingObj = new mapping("#idInterval","interval",0)
+	mappingObj.urivar = "i"
+	mappingObj.getURIVar = function()
+	{
+		return this.urivar+"="+$(this.id+" option:selected").val()
+	}
+	mappingObj.convert = function() {
+		var intervalSelected = $(this.id+" option:selected").val()
+		var returnValue = {days:1}
+		if(!isNaN(intervalSelected))
+		{
+			returnValue = {hours:intervalSelected}
+		}
+
+		return returnValue
+	}
+	mappingObj.setDefault = function() {
+		var scenario = mappingsLocal["scenario"].convert()
+		var testOption = $(this.id).find('option[value="'+scenario.interval+'"]')
+		if(testOption && testOption.prop)
+		{
+			testOption.prop('selected', true)
+		}
+	}
+	mappingsLocal[mappingObj.variable] = mappingObj	
+
+	mappingObj = new mapping("#idStart","start",0)
+	mappingObj.convert = function() {
+		var startSelected = $(this.id+" option:selected").val()
+		var returnValue = moment().add({days:1}).startOf('day').add({hours:22});
+		if(startSelected == "FirstOfMonth" )
+		{
+			returnValue = moment().startOf('month').add({months:1}).add({hours:22});
+		}
+		else if(startSelected == "FirstOfYear" )
+		{
+			returnValue = moment().add({years:1}).startOf('year').add({hours:22});
+		}
+		
+		return returnValue
+	}
+	mappingsLocal[mappingObj.variable] = mappingObj	
+	
+	var checkboxUncheck = function()
+	{
+		$.each($("input[id^="+this.id+"]"), function(key,checkbox) {
+			$(checkbox).prop("checked",false)
+		})
+		var scenario = mappingsLocal["scenario"].convert()
+		
+		var mappingObj = this
+		
+		$.each(scenario[this.variable],function (day,enabled) {
+			if(enabled) {
+				$("#"+mappingObj.id+day).prop("checked",true)
+			}
+		})
+	}
+	var checkboxConvert = function()
+	{
+		
+		var scenario = mappingsLocal["scenario"].convert()
+		var mappingObj = this
+		
+		var arrayChecks = scenario[mappingObj.variable].slice()
+		
+		$.each(arrayChecks,function (index,val) {
+			if($("#"+mappingObj.id+index).is(":checked"))
+			{
+				arrayChecks[index] =  1
+			}
+			else
+			{
+				arrayChecks[index] = 0
+			}
+		})
+		return arrayChecks
+	}
+	
+	var checkboxUri = function()
+	{
+		
+		var scenario = mappingsLocal["scenario"].convert()
+		var mappingObj = this
+		var toReturn = 0
+		
+		var arrayChecks = scenario[mappingObj.variable].slice()
+		
+		var flagged = false
+		$.each(arrayChecks,function (index,val) {
+			if($("#"+mappingObj.id+index).is(":checked"))
+			{
+				arrayChecks[index] =  1
+				flagged = true
+			}
+			else
+			{
+				arrayChecks[index] = 0
+			}
+		})
+		if (flagged)
+		{
+			toReturn = this.urivar+"="+arrayChecks.join(",")
+		}
+		return toReturn
+	}
+	
+	mappingObj = new mapping("fullcheckbox-synday","synthetic",1)
+	mappingObj.urivar = "sy"
+	mappingObj.getURIVar = checkboxUri
+	mappingObj.setDefault = checkboxUncheck
+	mappingObj.convert = checkboxConvert
+	mappingsLocal[mappingObj.variable] = mappingObj	
+	
+	
+	mappingObj = new mapping("fullcheckbox-incractday","activeWeeklyInc",1)
+	mappingObj.urivar = "iw"
+	mappingObj.getURIVar = checkboxUri
+	mappingObj.setDefault = checkboxUncheck
+	mappingObj.convert = checkboxConvert
+	mappingObj.puremap = "activeWeek"
+	mappingsLocal[mappingObj.variable] = mappingObj	
+	
+	mappingObj = new mapping("fullcheckbox-incractmonth","activeMonthlyInc",1)
+	mappingObj.urivar = "im"
+	mappingObj.getURIVar = checkboxUri
+	mappingObj.setDefault = checkboxUncheck
+	mappingObj.convert = checkboxConvert
+	mappingObj.puremap = "activeMonths"
+	mappingsLocal[mappingObj.variable] = mappingObj	
+	
+	
+	mappingObj = new mapping("fullcheckbox-revactday","activeWeeklyRev",2)
+	mappingObj.urivar = "rw"
+	mappingObj.getURIVar = checkboxUri
+	mappingObj.setDefault = checkboxUncheck
+	mappingObj.convert = checkboxConvert
+	mappingObj.puremap = "activeWeek"
+	mappingsLocal[mappingObj.variable] = mappingObj	
+	
+	mappingObj = new mapping("fullcheckbox-revactmonth","activeMonthlyRev",2)
+	mappingObj.urivar = "rm"
+	mappingObj.getURIVar = checkboxUri
+	mappingObj.setDefault = checkboxUncheck
+	mappingObj.convert = checkboxConvert
+	mappingObj.puremap = "activeMonths"
+	mappingsLocal[mappingObj.variable] = mappingObj	
+	
+	
+	mappingObj = new mapping("idGFS","GFS",3)
+	mappingObj.univar = "g"
+	mappingObj.getURIVar = function() {
+		var tmpGFS = [0,0,0,0]
+		$.each({0:"W",1:"M",2:"Q",3:"Y"}, function (key,val) {
+			tmpGFS[key] = parseInt($("#"+mappingObj.id+val).val())
+		})
+		return "g="+tmpGFS.join(",")
+	}
+	mappingObj.setDefault = function() {
+		var scenario = mappingsLocal["scenario"].convert()
+		var mappingObj = this
+		
+		$.each(scenario.GFS, function(key,preset) {
+			$("#"+mappingObj.id+key).val(preset)
+		})
+	}
+	mappingObj.convert = function() {
+		var mappingObj = this
+		var GFSSettings =  {"W":0,"M":0,"Q":0,"Y":0}
+		
+		$.each(GFSSettings, function(key,preset) {
+			GFSSettings[key] = parseInt($("#"+mappingObj.id+key).val())
+		})
+		
+		return GFSSettings
+	}
+	mappingsLocal[mappingObj.variable] = mappingObj	
+	
+	return mappingsLocal
+}
+function GUIStateVariables()
+{
+	var GUIState = 0
+	
+	
+	if(!window.GUIStateVariablesStore3b0f40f082684c88811ca35e18b70ed3)
+	{
+		GUIState = {}
+		GUIState.mappings = mappings()
+		GUIState.scenarios = scenarios()
+		GUIState.pureEngine = VeeamPureEngine()
+		GUIState.backupResult = VeeamBackupResultObject()
+		window.GUIStateVariablesStore3b0f40f082684c88811ca35e18b70ed3 = GUIState
+	}
+	else
+	{
+		GUIState = window.GUIStateVariablesStore3b0f40f082684c88811ca35e18b70ed3
+	}
+	return GUIState
+}
+function gfxTable()
+{
+	this.tbody =  document.createElement("tbody");  
+	this.lasttr = document.createElement("tr"); 
+	this.lastel = this.lasttr
+	
+	this.tbody.appendChild(this.lasttr)
+	
+	this.tr = function() {
+		this.lasttr = document.createElement("tr");
+		this.lastel = this.lasttr
+		this.tbody.appendChild(this.lasttr)
+		return this
+	}
+	this.attr = function(aname,avalue) {
+		this.lastel.setAttribute(aname,avalue)
+		return this
+	}
+	
+	this.td = function(text) {
+		var td = document.createElement("td");
+		var t = document.createTextNode(text);
+		td.appendChild(t)
+		this.lasttr.appendChild(td)
+		this.lastel = td
+		return this	
+	}
+	this.img = function(src) {
+		var td = document.createElement("td");
+		var img = document.createElement("img");
+		img.setAttribute("src",src)
+		td.appendChild(img)
+		this.lasttr.appendChild(td)
+		this.lastel = td
+		return this
+	}
+	
+	this.gettbody = function() {
+		return this.tbody
+	}
+	
+	return this
+}
+function humanReadableFilesize(valueIn)
+{
+	return  humanReadableFilesizeWithForce(valueIn,0)
+}
+function humanReadableFilesizeWithForce(valueIn,e)
+{
+	var forcesuffix = 0
+	if(e)
+	{
+		forcesuffix = e
+	}
+	return filesize(valueIn, {base: 2,round: 2,forcesuffix:forcesuffix})
+}
+function renderGFX(backupResult,showWorstCase)
+{
+	var resultdiv = $("#idResult")
+	var tableResult = $("#idTableResult")
+	tableResult.empty()
+	
+	
+	
+	var files = backupResult.getWorstCaseFiles()
+	if(!showWorstCase)
+	{
+		files = backupResult.getFiles()
+	}
+	//dirty hacking so that all the filesize suffixes are the same
+	var unifiedeval = 9
+	$.each(files,function(key,val) {
+		var testeval = filesize(val.fileSize, {base: 2,round: 2,output: "e"})
+		if (testeval < unifiedeval)
+		{
+			unifiedeval = testeval
+		}
+	});
+	
+	var filesizeTotal =  humanReadableFilesizeWithForce(backupResult.worstCaseSize,unifiedeval)
+	var workingSpace = humanReadableFilesizeWithForce(backupResult.worstCaseDayWorkingSpace,unifiedeval)
+	var grandTotal =  humanReadableFilesizeWithForce(backupResult.worstCaseSizeWithWorkingSpace,unifiedeval)
+
+	
+	
+	
+	if(!showWorstCase)
+	{
+		var tmptfs = backupResult.getTotalSize()
+		var tmpws = backupResult.getWorkSpace()
+		
+
+		filesizeTotal =   humanReadableFilesizeWithForce(tmptfs,unifiedeval)
+		workingSpace = humanReadableFilesizeWithForce(tmpws,unifiedeval)
+		grandTotal =  humanReadableFilesizeWithForce((tmptfs+tmpws),unifiedeval)
+		
+		if(backupResult.lastActionDate)
+		{
+			var tableShowHow = $("#idTableShowMeHow")
+			tableShowHow.empty()
+			
+			var tableHow = new gfxTable()
+			
+			tableHow.td("Last Steps "+backupResult.lastActionDate.format("dd YYYY-MM-DD HH ")+"h").attr("class","laststeps")
+			for(var counter=0;counter < backupResult.lastActions.length;counter = counter + 1 )
+			{
+				tableHow.tr().td(backupResult.lastActions[counter])
+			}
+			tableHow.tr().attr("style","height:100%").td("")
+			tableShowHow.append(tableHow.gettbody())
+		}
+	}
+	
+	
+	
+	var table = new gfxTable()
+	table.td("Retention").attr("class","widthpoint")
+	table.td("").attr("class","widthpointvisual")
+	table.td("File").attr("class","widthfile")
+	table.td("Size").attr("class","widthsize")
+	table.td("Modify Date").attr("class","widthdate")
+	table.td("Point Date").attr("class","widthdate")
+	
+	for(var counter=0;counter < files.length;counter = counter + 1 )
+	{
+		var file = files[counter]
+		table.tr().td(file.toRetentionString())
+		
+		if(file.isVBK())
+		{
+			
+			if(file.isGFS()) {
+				table.img("rpsimg/gfs.png")
+			}
+			else if (file.type == "F")
+			{
+				//active full, type is S if synthetic
+				table.img("rpsimg/active.png")
+				
+			}
+			else
+			{
+				table.img("rpsimg/full.png")
+			}
+		}
+		else
+		{
+			if(file.type == "I")
+			{
+				table.img("rpsimg/inc-up-img2.png")
+			}
+			else
+			{
+				table.img("rpsimg/rev-down-img2.png")
+			}
+		}
+		table.td(file.file).td( humanReadableFilesizeWithForce(file.fileSize,unifiedeval)).td(file.modifyDate.format("YYYY-MM-DD dd HH")).td(file.pointDate.format("YYYY-MM-DD dd HH"))		
+	}
+	table.tr().td("").td("").td("").td(filesizeTotal).attr("class","totalTopLine").td("").td("")
+	table.tr().td("").td("").td("Work Space").attr("class","alert").td("+"+workingSpace).attr("class","alert").td("").td("")
+	table.tr().td("").td("").td("").td(grandTotal).attr("class","totalTopLine").td("").td("")
+	tableResult.append(table.gettbody())
+	resultdiv.show()
+	
+	
+}
+
+function renderText(backupResult)
+{
+	var gsv = GUIStateVariables()
+	if(backupResult.lastActionDate)
+	{
+		
+		gsv.pureEngine.debugln("Last Steps "+backupResult.lastActionDate.format(),1)
+		for(var counter=0;counter < backupResult.lastActions.length;counter = counter + 1 )
+		{
+				gsv.pureEngine.debugln("<< "+backupResult.lastActions[counter],1)
+		}
+	}
+	else
+	{
+		gsv.pureEngine.debugln("no actions performed yet!",1)
+	}
+	
+	gsv.pureEngine.debugln("",1)
+	var files = backupResult.getFiles()
+	for(var counter=0;counter < files.length;counter = counter + 1 )
+	{
+		gsv.pureEngine.debugln("(*) >> "+files[counter],1)
+	}
+	gsv.pureEngine.debugln("",1)
+		
+	gsv.pureEngine.debugln("(Worst Case) >> "+backupResult.toStringWorstCase(),1)
+	files = backupResult.getWorstCaseFiles()
+		
+	for(var counter=0;counter < files.length;counter = counter + 1 )
+	{
+		gsv.pureEngine.debugln("(*) >> "+files[counter],1)
+	}
+		
+	$("#idConsole").val(gsv.pureEngine.log.join("\n"))
+}
+
+function manualrun(steps)
+{
+	manualrunDirect(steps,false)
+}
+function manualrunDirect(steps,simulateButton)
+{
+	var gsv = GUIStateVariables()
+	gsv.pureEngine.clearlog()
+	
+	var showmehowconsole = $("#idShowMeHowConsole")
+	var showmehowresult = $("#idShowMeHowResult")
+		
+	showmehowconsole.hide()
+
+	if(gsv.backupResult && gsv.currentMoment && gsv.interval && gsv.backupConfiguration)
+	{
+		var end = gsv.currentMoment.clone()
+		for(var i=0;i<steps;i = i +1)
+		{
+			end.add(gsv.interval)
+		}
+		
+		eval($("#idInput").val());
+		gsv.pureEngine.debugln("engine start",1)
+		gsv.pureEngine.run(gsv.backupConfiguration,gsv.backupResult,gsv.currentMoment,gsv.interval,end)
+		gsv.pureEngine.debugln("engine ended",1)	
+	
+		renderText(gsv.backupResult)	
+		renderGFX(gsv.backupResult,false)
+		
+		gsv.currentMoment = end
+		
+		
+		
+		showmehowconsole.show().draggable()
+		if(simulateButton)
+		{
+			showmehowconsole.animate({left:0,top:0})
+		}
+		showmehowresult.show();
+
+	}
+	
+	
+
+}
+
+function simulate()
+{
+	var gsv = GUIStateVariables()
+	
+	var showmehow = $("#idShowMeHowCheck").is(":checked")
+	var showmehowconsole = $("#idShowMeHowConsole")
+	var showmehowresult = $("#idShowMeHowResult")
+	
+	
+	showmehowconsole.hide()
+	showmehowresult.hide()
+
+	gsv.pureEngine.reset()
+	var backupResult = VeeamBackupResultObject()
+	
+	var sourceSize = gsv.mappings["size"].convert()
+	var backupstyle = gsv.mappings["style"].convert()
+	var retention = gsv.mappings["retention"].convert()
+	var backupConfiguration = VeeamBackupConfigurationObject(backupstyle,retention,sourceSize);
+
+	backupConfiguration["changeRate"] = gsv.mappings["changeRate"].convert()
+	backupConfiguration["compression"] = gsv.mappings["compression"].convert()
+	
+	$.each(gsv.mappings,function(key,mapping) {
+		if(mapping.applicable == backupstyle)
+		{
+			backupConfiguration[mapping.puremap] = gsv.mappings[mapping.variable].convert()
+		}
+	});
+	
+	var interval = gsv.mappings["interval"].convert()
+	var start = gsv.mappings["start"].convert()
+
+	
+	if(!showmehow)
+	{
+		gsv.backupConfiguration = backupConfiguration
+		gsv.backupResult = backupResult
+		
+		 
+		
+		eval($("#idInput").val());
+		var end = gsv.pureEngine.predictEndDate(backupConfiguration,start.clone(),interval)
+		gsv.pureEngine.debugln("engine start",1)
+		gsv.pureEngine.run(backupConfiguration,backupResult,start,interval,end)
+		gsv.pureEngine.debugln("engine ended",1)
+
+		renderText(backupResult)	
+		renderGFX(backupResult,true)
+		
+
+		
+		
+	}
+	else
+	{
+		gsv.backupResult = backupResult
+		gsv.currentMoment = start
+		gsv.interval = interval
+		gsv.backupConfiguration = backupConfiguration
+		
+		manualrunDirect(1,true)
+	}
+	
+}
+
+function selectScenario()
+{
+	var gsv = GUIStateVariables()
+	var selectedScenario = gsv.scenarios[$("#scenariosSelect option:selected").val()]
+	showInputs(selectedScenario.style)
+	
+}
+function checkboxURIParameter(instring,size)
+{
+	var points = new Array(size);
+	
+	
+	$.each(points,function(key,val) {
+		points[key] = 0
+	});
+	var splitstr = instring.split(",")
+	if(splitstr.length > 0 && splitstr.length <= size)
+	{
+		$.each(splitstr, function(key,val) {
+			var tmptest = parseInt(val)
+			
+			if(!isNaN(tmptest) && tmptest == 1)
+			{
+				points[key] = 1
+			}
+		})
+	}
+	
+	return points
+}
+
+function checkURIParameter(scenario,getmap,uriparam,scenariovar,parseFunction)
+{
+	if(uriparam in getmap)
+	{
+		if(parseFunction)
+		{
+			
+			scenario[scenariovar] =  parseFunction(getmap[uriparam],scenario)
+		}
+		else
+		{
+			scenario[scenariovar] = getmap[uriparam]
+		}
+		scenario.isURIScenario = true
+	}
+}
+$( document ).ready(function() {
+	var gsv = GUIStateVariables()
+	$("#idInput").val("gsv.pureEngine.loglevel = 0")
+	$("#idConsole").val("")
+	
+	var uri = new URI();
+	var getmap = uri.search(true);
+	
+	var uriscenario = new scenario("URL Parameters",1)
+	var intfunction = function(intcheck,scenario) { var toReturn = parseInt(intcheck); if(isNaN(toReturn)) { toReturn = 1 };return toReturn }
+	
+	checkURIParameter(uriscenario,getmap,"s","size",intfunction)
+	checkURIParameter(uriscenario,getmap,"r","retention",intfunction)
+	checkURIParameter(uriscenario,getmap,"d","changeRate",intfunction)
+	checkURIParameter(uriscenario,getmap,"c","compression",intfunction)
+	checkURIParameter(uriscenario,getmap,"i","interval",0)
+	checkURIParameter(uriscenario,getmap,"m","style",function(intcheck,scenario) {
+		var toReturn = parseInt(intcheck); 
+		if(isNaN(toReturn) || toReturn < 1 || toReturn > 3) { 
+			toReturn = 1 
+		};
+		return toReturn
+	})
+	checkURIParameter(uriscenario,getmap,"g","GFS",function(GFSSplit,scenario) {
+		var toReturn = {"W":0,"M":0,"Q":0,"Y":0}
+		var GFSSplit = GFSSplit.split(",")
+		
+		$.each({0:"W",1:"M",2:"Q",3:"Y"}, function (key,val) {
+			if (key < GFSSplit.length)
+			{
+				var testval = parseInt(GFSSplit[key])
+				if(!isNaN(testval))
+				{
+					toReturn[val] = testval
+				}
+			}
+		})
+		return toReturn
+	})
+	/*
+		this.synthetic = [0,0,0,0,0,0,0]
+		this.activeWeeklyInc = [0,0,0,0,0,0,0]
+		this.activeWeeklyRev = [0,0,0,0,0,0,0]
+		this.activeMonthlyInc = [0,0,0,0,0,0,0,0,0,0,0,0]
+		this.activeMonthlyRev = [0,0,0,0,0,0,0,0,0,0,0,0]
+	*/
+	checkURIParameter(uriscenario,getmap,"sy","synthetic",function(arraystring,scenario) { return checkboxURIParameter(arraystring,7) })
+	checkURIParameter(uriscenario,getmap,"iw","activeWeeklyInc",function(arraystring,scenario) { return checkboxURIParameter(arraystring,7)})
+	checkURIParameter(uriscenario,getmap,"im","activeMonthlyInc",function(arraystring,scenario) { return checkboxURIParameter(arraystring,12)})
+	checkURIParameter(uriscenario,getmap,"rw","activeWeeklyRev",function(arraystring,scenario) { return checkboxURIParameter(arraystring,7)})
+	checkURIParameter(uriscenario,getmap,"rm","activeMonthlyRev",function(arraystring,scenario) { return checkboxURIParameter(arraystring,12)})
+
+	
+	//legacy parameters
+	checkURIParameter(uriscenario,getmap,"used","size",intfunction)
+	checkURIParameter(uriscenario,getmap,"rp","retention",intfunction)
+	checkURIParameter(uriscenario,getmap,"delta","changeRate",intfunction)
+	checkURIParameter(uriscenario,getmap,"fullsave","compression",intfunction)
+	checkURIParameter(uriscenario,getmap,"incsave","hiddenOverrides",function(intcheck,scenario) { 
+		var toReturn = scenario.hiddenOverrides; 
+		if(!isNaN(parseInt(intcheck))) { toReturn += ";gsv.backupConfiguration['compressionDelta'] = "+intcheck;alert("The incsave is a legacy uri parameter and will only work for this specific url scenario, when you change style manually, it will be disabled. \nTry to avoid!") };return toReturn })
+	checkURIParameter(uriscenario,getmap,"strat","style",function(testval) { var toReturn = 1;if(testval == "rev") { toReturn = 2 } else if(testval == "bcj") { toReturn = 3 };return toReturn})
+	checkURIParameter(uriscenario,getmap,"hourly","interval",function(testval) { var toReturn = parseInt(testval);if(isNaN(toReturn)) { toReturn = "D" };return toReturn})
+
+	
+	if(uriscenario.isURIScenario)
+	{
+		gsv.scenarios[uriscenario.name] = uriscenario
+	}
+
+	var scenariosSelect = $("#scenariosSelect");
+	$.each(gsv.scenarios, function(key,val) {
+			if(val.isURIScenario)
+			{
+				var urioption = new Option(key, key)
+				urioption.setAttribute("selected","selected")
+				scenariosSelect.append(urioption);
+				
+			}
+			else
+			{
+				scenariosSelect.append(new Option(key, key));
+			}
+	});
+
+	
+	
+	selectScenario()
+	scenariosSelect.change(function() {
+		selectScenario()
+	})
+	$("#idStyle").change(function() {
+		showInputsWithDefaults($("#idStyle option:selected").val(),false)
+	})
+	if("dev" in getmap)
+	{
+		$('#idDivDev').show();
+	}
+	if("devline" in getmap)
+	{
+		$("#idInput").val($("#idInput").val()+getmap["devline"].replace(/^("|')/,"").replace(/("|')$/,""))
+	}
+	if("engine" in getmap)
+	{
+		var engineflags = getmap["engine"].split(",")
+		$.each(engineflags, function (key,val) {
+			if ( val in gsv.pureEngine.flags)
+			{
+				gsv.pureEngine.flags[val] = true
+			}
+		});
+	}
+	var manexec = function(getmap,urlparam) {
+		if (urlparam in getmap)
+		{
+			$("#idShowMeHowCheck").prop('checked', true);
+			simulate()
+			
+			if(getmap[urlparam])
+			{
+				
+				runs = parseInt(getmap[urlparam])
+				if(!isNaN(runs) && runs > 0)
+				{
+					//simulate will set parameters and will run 1 time
+					manualrun(runs-1);
+				}
+			}
+		}
+	}
+	
+	if("man" in getmap) { manexec(getmap,"man")}
+	else if ("x" in getmap) { manexec(getmap,"x")}
+	else if ("exec" in getmap || "e" in getmap)
+	{
+		simulate()
+	}
+
+	
+	
+});
+function showDialogDiv(divid)
+{
+	$("#"+divid).dialog({
+		modal: true,
+		buttons: {
+			Ok: function() {
+				$( this ).dialog( "close" );
+			}
+		},
+		minWidth: 500
+	});
+}
+</script>
+
+
+<a href="#" onClick="$('#idDivDev').toggle();return false;" style="color:#FEFEFE;font-size:8px;">#######</a>
+<div id="idDivDev" class="hiddenBlock" >
+<textarea id="idInput" rows="10" cols="150" ></textarea><br>
+<textarea id="idConsole" rows="10" cols="150" ></textarea><br>
+<input type="button" value="URL >>" onclick="saveStr()" ><input id="idURLStr" size="100"></input><br>
+</div>
+<div id="idreferences">
+<h1>The Restore Point Simulator</h1>
+Current version : <a href="#"  onclick="showDialogDiv('idreleasenotes');return false;">0.2.9</a><br> 
+Feedback via <a href="https://twitter.com/intent/tweet?screen_name=tdewin" style="text-decoration:none;">@tdewin</a><br>
+RPS heavily relies on some opensource <a href="#" onclick="showDialogDiv('idjavascript');return false;">javascript frameworks</a><br>
+If you require the old version for some reason, you can find it <a href="http://rps.dewin.me/old">here</a></br>
+</div>
+<div id="idreleasenotes" class="hiddenBlock">
+0.2.9 :
+<ul>
+<li>Easing function for working space also works for manual mode</li>
+</ul>
+
+0.2.8 :
+<ul>
+<li>Easing function for working space</li>
+</ul>
+
+0.2.7 : 
+<ul>
+<li>Added open source reference</li>
+<li>Added css style to all items for more unified view</li>
+<li>Added explanation for events in engine, needs gui</li>
+<li>Changed the default change rate to 10%</li>
+</ul>
+</div>
+<div id="idjavascript" class="hiddenBlock">
+<ul>
+	<li><a href="http://jquery.com/">jQuery</a></li>
+	<li><a href="http://jqueryui.com/">jQuery UI</a></li>
+	<li><a href="http://momentjs.com/">Moment.js</a></li>
+	<li><a href="http://filesizejs.com/">filesize.js</a> / <a href="http://rps.dewin.me/filesize-mod.js">RPS MOD</a></li>
+	<li><a href="http://medialize.github.io/URI.js/">URI.js</a></li>
+</ul>
+</div>
+<div>
+<h2>Quick Presets</h2>
+<table>
+		<tr><td colspan="2" ><select id="scenariosSelect" class="alignwidth"></select></td></tr>
+		<tr><td><input type="checkbox" id="idShowMeHowCheck"/>Manual Run</td><td><input class="alignwidth" type="button" value="Simulate" onClick="simulate();return false;"></td></tr>
+</table>
+</div>
+<div id="idDivGeneral" class="">
+		<h2>Configuration</h2>
+		<table class="inputTable">
+		<tr><td>Style</td><td>
+			<select id="idStyle" class="alignwidth">
+				<option value="1" >Incremental</option>
+				<option value="2" >Reverse</option>
+				<option value="3" >Backup Copy Job</option>
+			</select>
+		</td></tr>
+		<tr><td>Used Size GB</td><td><input class="alignwidth" type="text" id="idData" value="1000"></input></td></tr>
+		<tr><td>Retention Points</td><td><input class="alignwidth" type="text" id="idRP" value="14"></input></td></tr>
+		<tr><td>Change Rate</td><td><input class="alignwidth" type="text" id="idDelta" value="10" ></input></td></tr>
+		<tr><td>Compression</td><td><input class="alignwidth" type="text" id="idCompression" value="50" ></input></td></tr>
+		<tr><td>Interval</td><td>
+			<select id="idInterval" class="alignwidth">
+				<option value="D" >Daily</option>
+				<option value="12" >Every 12 Hours</option>
+				<option value="8" >Every 8 Hours</option>
+				<option value="6" >Every 6 Hours</option>
+				<option value="4" >Every 4 Hours</option>
+				<option value="2" >Every 2 Hours</option>
+				<option value="1" >Hourly</option>
+			</select>
+			</td></tr>
+		<tr><td>Start Date</td><td>
+			<select id="idStart" class="alignwidth">
+				<option value="Tomorrow" >Tomorrow At 22</option>
+				<option value="FirstOfMonth" >First Of Next Month At 22</option>
+				<option value="FirstOfYear" >First Of Next Year At 22</option>
+			</select>
+		</td></tr>
+	</table>
+</div>
+<div id="idDivForward" class="inputSpecific hiddenBlock" >
+<h2>Incremental Specific</h2>
+		<table class="inputTable">
+			<tr><td>Synthetic</td>
+				<td>
+					<input type="checkbox" id="fullcheckbox-synday0" value="MO"><div class="weekspan">MO</div>
+					<input type="checkbox" id="fullcheckbox-synday1" value="TU"><div class="weekspan">TU</div>
+					<input type="checkbox" id="fullcheckbox-synday2" value="WE"><div class="weekspan">WE</div>
+					<input type="checkbox" id="fullcheckbox-synday3" value="TH"><div class="weekspan">TH</div>
+					<input type="checkbox" id="fullcheckbox-synday4" value="FR"><div class="weekspan">FR</div>
+					<input type="checkbox" id="fullcheckbox-synday5" value="SA"><div class="weekspan">SA</div>
+					<input type="checkbox" id="fullcheckbox-synday6" value="SU"><div class="weekspan">SU</div>
+				</td>
+			</tr>
+
+			<tr><td>Active Full Weekly</td>
+				<td>
+					<input type="checkbox" id="fullcheckbox-incractday0" value="MO"><div class="weekspan">MO</div>
+					<input type="checkbox" id="fullcheckbox-incractday1" value="TU"><div class="weekspan">TU</div>
+					<input type="checkbox" id="fullcheckbox-incractday2" value="WE"><div class="weekspan">WE</div>
+					<input type="checkbox" id="fullcheckbox-incractday3" value="TH"><div class="weekspan">TH</div>
+					<input type="checkbox" id="fullcheckbox-incractday4" value="FR"><div class="weekspan">FR</div>
+					<input type="checkbox" id="fullcheckbox-incractday5" value="SA"><div class="weekspan">SA</div>
+					<input type="checkbox" id="fullcheckbox-incractday6" value="SU"><div class="weekspan">SU</div>
+				</td>
+			</tr>
+			<tr><td rowspan="2">Active Full Monthly</td>
+				<td>
+					<input type="checkbox" id="fullcheckbox-incractmonth0" value="Jan"><div class="monthspan">Jan</div>
+					<input type="checkbox" id="fullcheckbox-incractmonth1" value="Feb"><div class="monthspan">Feb</div>
+					<input type="checkbox" id="fullcheckbox-incractmonth2" value="Mar"><div class="monthspan">Mar</div>
+					<input type="checkbox" id="fullcheckbox-incractmonth3" value="Apr"><div class="monthspan">Apr</div>
+					<input type="checkbox" id="fullcheckbox-incractmonth4" value="May"><div class="monthspan">May</div>
+					<input type="checkbox" id="fullcheckbox-incractmonth5" value="Jun"><div class="monthspan">Jun</div>
+
+				</td>
+			</tr>
+			<tr>
+				<td>
+					<input type="checkbox" id="fullcheckbox-incractmonth6" value="Jul"><div class="monthspan">Jul</div>
+					<input type="checkbox" id="fullcheckbox-incractmonth7" value="Aug"><div class="monthspan">Aug</div>
+					<input type="checkbox" id="fullcheckbox-incractmonth8" value="Sep"><div class="monthspan">Sep</div>
+					<input type="checkbox" id="fullcheckbox-incractmonth9" value="Oct"><div class="monthspan">Oct</div>
+					<input type="checkbox" id="fullcheckbox-incractmonth10" value="Nov"><div class="monthspan">Nov</div>
+					<input type="checkbox" id="fullcheckbox-incractmonth11" value="Dec"><div class="monthspan">Dec</div>
+				</td>
+			</tr>
+		</table>
+
+</div>
+<div id="idDivReverse" class="inputSpecific hiddenBlock">
+		<h2>Reverse Specific</h2>
+
+		<table class="inputTable">
+			<tr><td>Active Full Weekly</td>
+				<td>
+					<input type="checkbox" id="fullcheckbox-revactday0" value="MO"><div class="weekspan">MO</div>
+					<input type="checkbox" id="fullcheckbox-revactday1" value="TU"><div class="weekspan">TU</div>
+					<input type="checkbox" id="fullcheckbox-revactday2" value="WE"><div class="weekspan">WE</div>
+					<input type="checkbox" id="fullcheckbox-revactday3" value="TH"><div class="weekspan">TH</div>
+					<input type="checkbox" id="fullcheckbox-revactday4" value="FR"><div class="weekspan">FR</div>
+					<input type="checkbox" id="fullcheckbox-revactday5" value="SA"><div class="weekspan">SA</div>
+					<input type="checkbox" id="fullcheckbox-revactday6" value="SU"><div class="weekspan">SU</div>
+				</td>
+			</tr>
+			<tr><td rowspan="2">Active Full Monthly</td>
+				<td>
+					<input type="checkbox" id="fullcheckbox-revactmonth0" value="Jan"><div class="monthspan">Jan</div>
+					<input type="checkbox" id="fullcheckbox-revactmonth1" value="Feb"><div class="monthspan">Feb</div>
+					<input type="checkbox" id="fullcheckbox-revactmonth2" value="Mar"><div class="monthspan">Mar</div>
+					<input type="checkbox" id="fullcheckbox-revactmonth3" value="Apr"><div class="monthspan">Apr</div>
+					<input type="checkbox" id="fullcheckbox-revactmonth4" value="May"><div class="monthspan">May</div>
+					<input type="checkbox" id="fullcheckbox-revactmonth5" value="Jun"><div class="monthspan">Jun</div>
+
+				</td>
+			</tr>
+			<tr>
+				<td>
+					<input type="checkbox" id="fullcheckbox-revactmonth6" value="Jul"><div class="monthspan">Jul</div>
+					<input type="checkbox" id="fullcheckbox-revactmonth7" value="Aug"><div class="monthspan">Aug</div>
+					<input type="checkbox" id="fullcheckbox-revactmonth8" value="Sep"><div class="monthspan">Sep</div>
+					<input type="checkbox" id="fullcheckbox-revactmonth9" value="Oct"><div class="monthspan">Oct</div>
+					<input type="checkbox" id="fullcheckbox-revactmonth10" value="Nov"><div class="monthspan">Nov</div>
+					<input type="checkbox" id="fullcheckbox-revactmonth11" value="Dec"><div class="monthspan">Dec</div>
+				</td>
+			</tr>
+		</table>
+
+</div>
+<div id="idDivBCJ" class="inputSpecific hiddenBlock">
+		<h2>Backup Copy Job Specific</h2>
+		<table class="inputTable">
+			<tr><td>Weekly</td><td><input class="alignwidth" type="text" id="idGFSW" value="0"></input></td></tr>
+			<tr><td>Monthly</td><td><input class="alignwidth" type="text" id="idGFSM" value="0"></input></td></tr>
+			<tr><td>Quarterly</td><td><input class="alignwidth" type="text" id="idGFSQ" value="0"></input></td></tr>
+			<tr><td>Yearly</td><td><input class="alignwidth" type="text" id="idGFSY" value="0"></input></td></tr>
+		</table>
+</div>
+<div>
+<div id="idShowMeHowResult" class="hiddenBlock" >
+			<table id="idTableShowMeHow">
+				<tbody></tbody>
+			</table>
+</div>
+<div id="idShowMeHowConsole" class="hiddenBlock"  style="vertical-align:top;"  >
+			<table id="idTableShowMeConsole" style="border:1px black solid;">
+				<tr><td colspan="5" style="background-image: url('rpsimg/dragme.png');">Manual Run</td></tr>
+				<tr><td><input class="alignwidth" type="button" value="1x" onClick="manualrun(1);return false;"></td>
+				<td><input class="alignwidth" type="button" value="7x" onClick="manualrun(7);return false;"></td>
+				<td><input class="alignwidth" type="button" value="24x" onClick="manualrun(24);return false;"></td>
+				<td><input class="alignwidth" type="button" value="28x" onClick="manualrun(28);return false;"></td>
+				<td><input class="alignwidth" type="button" value="365x" onClick="manualrun(365);return false;"></td></tr>
+			</table>
+</div>
+</div>
+<div id="idResult" class="hiddenBlock">
+		<h2>Result</h2>
+		<table id="idTableResult">
+			<tbody></tbody>
+		</table>
+</div>
+
+
+
+</body>
+</html>
