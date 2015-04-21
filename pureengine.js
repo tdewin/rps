@@ -461,7 +461,7 @@ function VeeamPureEngine()
 	PureEngineObj.log = []
 	
 	PureEngineObj.flags = {
-		lateFlagging: false,
+		lateFlagging: true,
 		incStars: false,
 	}
 		
