@@ -1244,10 +1244,9 @@ function VeeamPureEngine()
 				//distance tells use the max amounts between different full backups
 				//prediction date need to be longer in function of the distance (max 2 years if 1 year of distance, begin point somewhere in the future (pot 1 year) + 1 year retention + simple retentions)
 				//(will show up as 11 so +1)
-				//*2 for 2 years
-				//2 months for extra
+				//12 months for extra so that we can have at least one scheduled backup running + 1 safety
 				//It should actually shorten predictive date in most common scenario's
-				var superPred = ((backupConfiguration.distanceMonths()+1)*2)+2
+				var superPred = (backupConfiguration.distanceMonths()+12+1+1
 				addExtraHours = moment.duration({months:superPred}).asHours();
 				addHours = addHours + addExtraHours
 				this.debugln("Paranoid Predictive Months "+superPred,3)
