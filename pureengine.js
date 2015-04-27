@@ -267,7 +267,27 @@ function VeeamBackupConfigurationObject(style,simplePoints,sourceSize)
 	VeeamBackupConfigurationObj.activateAllMonths = function () {
 		this.activeMonths = [1,1,1,1,1,1,1,1,1,1,1,1]
 	}
-		
+	
+
+	VeeamBackupConfigurationObj.distanceMonths = function () {
+			var maxdist = 0
+			var cdist = 0
+			var ml = this.activeMonths.length
+			for (var i = 0;i < 24;i++)
+			{
+					if(this.activeMonths[i%ml] == 0)
+					{
+							cdist += 1
+					} else {
+							if (cdist > maxdist)
+							{
+								maxdist = cdist
+							}
+							cdist = 0
+					}
+			}
+			return maxdist
+	}
 
 	//should we go through transform algorithm, with other words, are there any fulls being done ever
 	//v8 whats new ;)
@@ -1217,9 +1237,20 @@ function VeeamPureEngine()
 			if (fullStatus == 1)
 			{
 				//add 12 months so that if some months are unchecked, we are safe
-				addExtraHours = moment.duration({months:12}).asHours();
-				this.debugln("Extra Predictive "+addExtraHours,3)
+				//addExtraHours = moment.duration({months:12}).asHours();
+				//this.debugln("Extra Predictive "+addExtraHours,3)
+				//addHours = addHours + addExtraHours
+				
+				//distance tells use the max amounts between different full backups
+				//prediction date need to be longer in function of the distance (max 2 years if 1 year of distance, begin point somewhere in the future (pot 1 year) + 1 year retention + simple retentions)
+				//(will show up as 11 so +1)
+				//*2 for 2 years
+				//2 months for extra
+				//It should actually shorten predictive date in most common scenario's
+				var superPred = ((backupConfiguration.distanceMonths()+1)*2)+2
+				addExtraHours = moment.duration({months:superPred}).asHours();
 				addHours = addHours + addExtraHours
+				this.debugln("Paranoid Predictive Months "+superPred,3)
 			}
 			else if (fullStatus == 2 || fullStatus == 3)
 			{
