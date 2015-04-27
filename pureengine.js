@@ -1246,7 +1246,7 @@ function VeeamPureEngine()
 				//(will show up as 11 so +1)
 				//12 months for extra so that we can have at least one scheduled backup running + 1 safety
 				//It should actually shorten predictive date in most common scenario's
-				var superPred = (backupConfiguration.distanceMonths()+12+1+1
+				var superPred = (backupConfiguration.distanceMonths()+12+1+1)
 				addExtraHours = moment.duration({months:superPred}).asHours();
 				addHours = addHours + addExtraHours
 				this.debugln("Paranoid Predictive Months "+superPred,3)
