@@ -45,10 +45,7 @@ VeeamBackupConfiguration:
 */
 
 /*
-	We need to make an inherit object. If we do not 
-	> VeeamBackupFileNullObject() will call -> VeeamBackupFileObject(0,0,0,0,0,0)
-	> In VeeamBackupFileObject(0,0,0,0,0,0) ->  VeeamBackupFileObj.next = VeeamBackupFileNullObject() will call - > VeeamBackupFileNullObject()
-	Thus creating a loop
+	Legacy Inheritance from link list mode (significantly slower in js)
 */
 function VeeamBackupFileObject(file,parent,type,fileSize,createDate,pointDate)
 {
@@ -379,6 +376,9 @@ function VeeamBackupResultObject()
 	VeeamBackupResultObj.garbage = []
 	VeeamBackupResultObj.workingSpace = 0
 	
+	//don't rely on this value unless you execute a recalcpointid
+	VeeamBackupResultObj.newestFull = -1
+	VeeamBackupResultObj.safeToMerge = 0
 	
 	VeeamBackupResultObj.worstCaseSize = 0
 	VeeamBackupResultObj.worstCaseDayWorkingSpace = 0
@@ -481,7 +481,6 @@ function VeeamPureEngine()
 	PureEngineObj.log = []
 	
 	PureEngineObj.flags = {
-		lateFlagging: true,
 		incStars: false,
 	}
 		
@@ -829,12 +828,16 @@ function VeeamPureEngine()
 		}
 	}	
 	
+
 	PureEngineObj.recalcPointIDs = function (backupConfiguration,backupResult)
 	{
 		var pureEngineLocal = this
 		var simplepoint = 1
 		var gfscounters = {W:1,M:1,Q:1,Y:1}
 		
+		var firstfullfound = 0
+		backupResult.newestFull = -1
+		backupResult.safeToMerge = 1
 		
 		var ret = backupResult.retention
 		//this is the object we want to keep
@@ -846,6 +849,26 @@ function VeeamPureEngine()
 			var point = ret[counter]
 			point.pointid = simplepoint
 			
+			if(!firstfullfound)
+			{
+				if(point.isVBK())
+				{
+					firstfullfound = 1
+					backupResult.newestFull = point.pointid
+					
+					var peek = counter - 1
+					if(peek >= 0)
+					{
+						if(ret[peek].type == "R")
+						{
+							backupResult.safeToMerge = 0
+						}
+					}
+				}
+				else if (point.type != "I") {
+					backupResult.safeToMerge = 0
+				}
+			}
 			
 			//marks for garbage collection
 			if(point.pointid <= backupConfiguration.simplePoints)
@@ -870,11 +893,6 @@ function VeeamPureEngine()
 						if(pureEngineLocal.flags.incStars)
 						{
 							point.GFSPointids[gfstype] = "*"						
-						}
-						else
-						{
-							point.GFSPointids[gfstype] = gfscounters[gfstype]
-							gfscounters[gfstype] = gfscounters[gfstype] + 1
 						}
 
 				})
@@ -961,7 +979,125 @@ function VeeamPureEngine()
 		backupResult.GFS = newGfs
 	}
 
+	//new merging engine optimized after finding out GFS miscalculation
+	//it is following more the logic described in the manual
+	PureEngineObj.mergeVBK = function(backupResult,backupConfiguration,mergetime)
+	{
+		this.recalcPointIDs(backupConfiguration,backupResult)
+		if(backupResult.newestFull != -1)
+		{
+			if(backupResult.safeToMerge)
+			{
+				if(backupResult.newestFull > backupConfiguration.simplePoints)
+				{
+					this.debugln("Safe to merge and found full",4)
+					
+					var recyclebin = [] 
+					var ret = backupResult.retention
+					var gfs = backupResult.GFS
+					var newRet = []
+					
+					//pushing previous points
+					var counter = 0
+					for(;counter < ret.length && ret[counter].pointid != backupResult.newestFull ;counter = counter +1 )
+					{
+						newRet.push(ret[counter])
+					}
+					
+					if(ret[counter].pointid == backupResult.newestFull)
+					{
+						var parent = ret[counter]
+						newRet.push(parent)
+						
+						for(counter++;counter < ret.length ;counter = counter +1 )
+						{
+							var point = ret[counter]
+							if(point.pointid >= backupConfiguration.simplePoints && parent == point.parent)
+							{
+								//consider GFS
+								this.debugln("Are we BCJ?",4)
+								if(backupConfiguration.style == 3)
+								{
+									this.debugln("We are BCJ",4)
+									this.markforGFS(backupConfiguration,mergetime.clone(),parent,point)
+									if (point.isMarkedForGFS()) {
+										backupResult.addLastAction(VeeamBackupLastActionObject(0,"Next point is closer to some GFS configurations and will be used for GFS Retention next run, merging it now"))
+									}
+									
+								}
+								if(parent.isMarkedForGFS())
+								{
+									this.debugln("GFS Retention executing",4)
+									//stages based on http://helpcenter.veeam.com/backup/80/vsphere/backup_copy_gfs_weekly_cycle.html
+									//stage 1 of GFS marked parent
+									var removedparent = newRet.pop()
+									parent = VeeamBackupFileObject("full.vbk",VeeamBackupFileNullObject(),"S",backupConfiguration.getFullSize(),mergetime.clone(),point.pointDate.clone())
+									parent.GFSType = point.GFSType
+									parent.GFSPointids = point.GFSPointids
+									//connect incs to new compacted father
+									for(var updatecounter=counter+1;updatecounter < ret.length && ret[updatecounter].parent == removedparent;updatecounter = updatecounter +1 )
+									{
+										ret[updatecounter].parent = parent
+									}
+									
+									newRet.push(parent)
+									backupResult.addLastAction(VeeamBackupLastActionObject(0,"Copied data from Full and Inc SEQ 2x I/O Read, Write / 2x "+ this.humanReadableFilesize(backupConfiguration.getFullSize())))
+									
+									//stage 2 recycling VIB
+									point.modifyDate = mergetime.clone()
+									recyclebin.push(point)
+									backupResult.addLastAction(VeeamBackupLastActionObject(0,"Deleting  VIB File"))
+									
+									//stage 3 pushing parent to GFS 
+									removedparent.type = "G"
+									removedparent.flagForKeepId = 0
+									gfs.push(removedparent)
+									
+								}
+								else
+								{
+									this.debugln("Just merging cause parent is not marked with GFS",4)
+									parent.modifyDate = mergetime.clone()
+									parent.pointDate = point.pointDate.clone()
+									parent.pointid = point.pointid
+									parent.type = "S"
+									parent.GFSType = point.GFSType
+									parent.GFSPointids = point.GFSPointids
+									
+									point.modifyDate = mergetime.clone()
+									recyclebin.push(point)
+									backupResult.addLastAction(VeeamBackupLastActionObject(0,"Merging VBK/VIB / RAND 2x I/O Read, Write / 2x "+ this.humanReadableFilesize(backupConfiguration.getIncrementalSize())))
+									backupResult.addLastAction(VeeamBackupLastActionObject(0,"Deleting merged VIB File"))
+								}
+								
+								
+							}
+							else
+							{
+								newRet.push(point)	
+							}
+						}
+						backupResult.garbage.concat(recyclebin)
+						backupResult.retention = newRet
+					}
+					else
+					{
+						this.debugln("No way this should happen but life is not always fun and games, changing nothing",1)
+					}
+				}
+			}
+			else {
+				this.debugln("Can not merge full without a clean chall (all incs in front & no vbk after)",1)
+			}
+		}
+		else
+		{
+			this.debugln("Can not merge on "+mergetime+"cause no fulls where found, that not good at all!",1)
+		}
+		
+	}
 	
+	//this is an old deprecated mode kept for one version for easy revert
 	//merging does not delete points that it did not merge (or should not ;))
 	PureEngineObj.mergeNewestVBK = function(backupResult,backupConfiguration,mergetime)
 	{
@@ -1422,7 +1558,7 @@ function VeeamPureEngine()
 					//if we don't have any active or synthetics, execute transform
 					if(dotransform)
 					{
-						this.mergeNewestVBK(backupResult,backupConfiguration,exectime.clone())
+						this.mergeVBK(backupResult,backupConfiguration,exectime.clone())
 					}
 					else
 					{
@@ -1536,19 +1672,7 @@ function VeeamPureEngine()
 						backupResult.retentionPush(newpoint)
 						
 						
-						if(this.flags.lateFlagging)
-						{
-							var ret = backupResult.retention
-							if(ret.length > 2 && ret.length > backupConfiguration.simplePoints )
-							{
-								this.markforGFS(backupConfiguration,exectime.clone(),ret[0],ret[1])
-							}
-						}
-						else
-						{
-							this.markforGFS(backupConfiguration,exectime.clone(),latest,newpoint)
-						}
-						this.mergeNewestVBK(backupResult,backupConfiguration,exectime.clone())
+						this.mergeVBK(backupResult,backupConfiguration,exectime.clone())
 						this.doRecycle(backupResult,backupConfiguration,exectime.clone())
 						
 						//worst case verification
