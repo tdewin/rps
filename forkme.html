@@ -1,0 +1,55 @@
+<html>
+<head>
+<title>Restore Point Simulator</title>
+<link rel="stylesheet" type="text/css" href="pureengine.css">
+<link href="jquery-ui.css" rel="stylesheet">
+
+</head>
+<body class="mainfont">
+
+<script src="jquery-2.0.1.min.js"></script>
+<script src="jquery-ui.min.js"></script>
+<script src="URI.js"></script>
+<script src="moment.min.js"></script>
+<script src="filesize-mod.js"></script>
+<script src="pureengine.js"></script>
+<div id="result">
+</div>
+<script>
+
+var retention = 14
+var sourceSize = (1000*1024*1024*1024)
+var backupstyle = 1
+var interval = {hours:24}
+
+var backupConfiguration = VeeamBackupConfigurationObject(backupstyle,retention,sourceSize);
+//find more overrides here  VeeamBackupConfigurationObject(style,simplePoints,sourceSize)
+backupConfiguration.activeWeek  = [0,0,0,0,0,0,1,0]
+//in %
+backupConfiguration.compression = 50
+backupConfiguration.changeRate = 10
+
+var backupResult = VeeamBackupResultObject()
+var pureEngine = VeeamPureEngine()
+pureEngine.reset()
+
+
+
+var start = moment().add({days:1}).startOf('day').add({hours:22});
+var end = pureEngine.predictEndDate(backupConfiguration,start.clone(),interval)
+pureEngine.run(backupConfiguration,backupResult,start,interval,end)
+
+
+var files = backupResult.getWorstCaseFiles()
+var text = ""
+for(var counter=0;counter < files.length;counter = counter + 1 ) {
+		//find more examples here function VeeamBackupFileObjectInheritable(file,parent,type,fileSize,createDate,pointDate)
+		//eg VeeamBackupFileObj.toString = function ()
+		text += files[counter].toString()+"<br>"
+}
+$("#result").html(text)
+
+</script>
+
+</body>
+</html>
