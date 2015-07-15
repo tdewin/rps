@@ -13,10 +13,13 @@ a:hover, a:link, a:visited {
 .alignwidth {
 	width:100%;
 }
-table.inputTable td {
+
+table.inputTable td.fixwidth {
 	width:400px;
 }
-
+table.inputTable td.fixwidthhalf {
+	width:200px;
+}
 #idTableShowMeConsole td {
 	width:150px;
 }

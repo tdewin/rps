@@ -189,6 +189,24 @@ function mappings()
 {
 	var mappingsLocal = {}
 	
+	//default convertors 
+	var convertSelectInt = function() {
+		var selected = $(this.id+" option:selected").val()
+		return parseInt(selected)
+	}
+	var convertSelectFloat = function() {
+		var selected = $(this.id+" option:selected").val()
+		return parseFloat(selected)
+	}
+	var convertInt = function() {
+		return parseInt($(this.id).val())
+	}
+	//default uri mappers
+	
+	
+	//defining mappings
+	
+	
 	var mappingObj = new mapping("#scenariosSelect","scenario",-1)
 	mappingObj.convert = function() {
 		var scenario = GUIStateVariables().scenarios[$(this.id).val()]
@@ -198,9 +216,7 @@ function mappings()
 	
 	mappingObj = new mapping("#idStyle","style",0)
 	mappingObj.urivar = "m"
-	mappingObj.convert = function() { 
-		return parseInt($(this.id).val())
-	}
+	mappingObj.convert = convertInt
 	mappingObj.setDefault = function() {
 		var scenario = mappingsLocal["scenario"].convert()
 		 $("#idStyle option[value='"+scenario.style+"']").prop('selected',true);
@@ -220,9 +236,7 @@ function mappings()
 	
 	mappingObj = new mapping("#idData","size",0)
 	mappingObj.urivar = "s"
-	mappingObj.convert = function() {
-		return parseInt($(this.id).val())*1024*1024*1024
-	}
+	mappingObj.convert = function () { return (parseInt($(this.id).val())*1024*1024*1024) }
 	mappingObj.setDefault = function() {
 		var scenario = mappingsLocal["scenario"].convert()
 		$(this.id).val(scenario.size)
@@ -231,9 +245,7 @@ function mappings()
 	
 	mappingObj = new mapping("#idRP","retention",0)
 	mappingObj.urivar = "r"
-	mappingObj.convert = function() {
-		return parseInt($(this.id).val())
-	}
+	mappingObj.convert = convertInt
 	mappingObj.setDefault = function() {
 		var scenario = mappingsLocal["scenario"].convert()
 		 $(this.id).val(scenario.retention)
@@ -242,9 +254,7 @@ function mappings()
 
 	mappingObj = new mapping("#idCompression","compression",0)
 	mappingObj.urivar = "c"
-	mappingObj.convert = function() {
-		return parseInt($(this.id).val())
-	}
+	mappingObj.convert = convertSelectInt
 	mappingObj.setDefault = function() {
 		var scenario = mappingsLocal["scenario"].convert()
 		 $(this.id).val(scenario.compression)
@@ -253,15 +263,14 @@ function mappings()
 	
 	mappingObj = new mapping("#idDelta","changeRate",0)
 	mappingObj.urivar = "d"
-	mappingObj.convert = function() {
-		return parseInt($(this.id).val())
-	}
+	mappingObj.convert = convertSelectInt
 	mappingObj.setDefault = function() {
 		var scenario = mappingsLocal["scenario"].convert()
 		 $(this.id).val(scenario.changeRate)
 	}
 	mappingsLocal[mappingObj.variable] = mappingObj	
 	
+	//Interval Mapping
 	mappingObj = new mapping("#idInterval","interval",0)
 	mappingObj.urivar = "i"
 	mappingObj.getURIVar = function()
@@ -288,6 +297,7 @@ function mappings()
 	}
 	mappingsLocal[mappingObj.variable] = mappingObj	
 
+	//Start Mapping
 	mappingObj = new mapping("#idStart","start",0)
 	mappingObj.convert = function() {
 		var startSelected = $(this.id+" option:selected").val()
@@ -304,6 +314,20 @@ function mappings()
 		return returnValue
 	}
 	mappingsLocal[mappingObj.variable] = mappingObj	
+	
+	//DataGrowth Mappings
+	mappingObj = new mapping("#idDataGrowthRate","dataGrowthRate",0)
+	mappingObj.convert = convertSelectInt
+	mappingsLocal[mappingObj.variable] = mappingObj	
+	
+	mappingObj = new mapping("#idDataGrowthYear","dataGrowthYear",0)
+	mappingObj.convert = convertSelectFloat
+	mappingsLocal[mappingObj.variable] = mappingObj	
+	
+	mappingObj = new mapping("#idDataGrowth","dataGrowth",0)
+	mappingObj.convert = function() { return $(this.id).is(':checked') }
+	mappingsLocal[mappingObj.variable] = mappingObj	
+	
 	
 	var checkboxUncheck = function()
 	{
@@ -743,18 +767,32 @@ function simulate()
 	});
 	
 	var interval = gsv.mappings["interval"].convert()
-	var start = gsv.mappings["start"].convert()
-
+	//var start = gsv.mappings["start"].convert()
+	var start = moment().add({days:1}).startOf('day').add({hours:22});
+	
+	var datagrowthrate = gsv.mappings["dataGrowthRate"].convert()
+	var datagrowthyears = gsv.mappings["dataGrowthYear"].convert()
+	var datagrowthenabled = gsv.mappings["dataGrowth"].convert()
+	
+	if(datagrowthenabled)
+	{
+		backupConfiguration.simpleYearGrowth = datagrowthrate
+	} else { backupConfiguration.simpleYearGrowth = 0 }
 	
 	if(!showmehow)
 	{
 		gsv.backupConfiguration = backupConfiguration
 		gsv.backupResult = backupResult
 		
-		 
+
 		
 		eval($("#idInput").val());
-		var end = gsv.pureEngine.predictEndDate(backupConfiguration,start.clone(),interval)
+		var end = start.clone().add(datagrowthyears,'years')
+		if(!datagrowthenabled)
+		{
+			end = gsv.pureEngine.predictEndDate(backupConfiguration,start.clone(),interval)
+		}
+		
 		gsv.pureEngine.debugln("engine start",1)
 		gsv.pureEngine.run(backupConfiguration,backupResult,start,interval,end)
 		gsv.pureEngine.debugln("engine ended",1)
@@ -963,9 +1001,18 @@ $( document ).ready(function() {
 		simulate()
 	}
 
-	
+
+	toggleDataGrowth()
 	
 });
+function toggleDataGrowth()
+{
+	var toggle = $('#idDataGrowth').is(':checked')
+	var manrundisabled = !$('#idShowMeHowCheck').is(':checked')
+	
+	$('#idDataGrowthRate').prop('disabled',!toggle)
+	$('#idDataGrowthYear').prop('disabled',!(toggle && manrundisabled))
+}
 function showDialogDiv(divid)
 {
 	$("#"+divid).dialog({
@@ -997,7 +1044,7 @@ If you require the old version for some reason, you can find it <a href="http://
 <div id="idreleasenotes" class="hiddenBlock">
 0.3.0 :
 <ul>
-<li>Renewed merging engine, should mimick more how the production engine works (based on documentation)</li>
+<li>Renewed merging engine, should mimic more how the production engine works (based on documentation)</li>
 </ul>
 
 0.2.9 :
@@ -1031,24 +1078,63 @@ If you require the old version for some reason, you can find it <a href="http://
 <h2>Quick Presets</h2>
 <table>
 		<tr><td colspan="2" ><select id="scenariosSelect" class="alignwidth"></select></td></tr>
-		<tr><td><input type="checkbox" id="idShowMeHowCheck"/>Manual Run</td><td><input class="alignwidth" type="button" value="Simulate" onClick="simulate();return false;"></td></tr>
+		<tr><td><input type="checkbox" id="idShowMeHowCheck" onchange="toggleDataGrowth()"/>Manual Run</td><td><input class="alignwidth" type="button" value="Simulate" onClick="simulate();return false;"></td></tr>
 </table>
 </div>
 <div id="idDivGeneral" class="">
 		<h2>Configuration</h2>
 		<table class="inputTable">
-		<tr><td>Style</td><td>
+		<tr><td class="fixwidth">Style</td><td class="fixwidth" colspan="2">
 			<select id="idStyle" class="alignwidth">
 				<option value="1" >Incremental</option>
 				<option value="2" >Reverse</option>
 				<option value="3" >Backup Copy Job</option>
 			</select>
 		</td></tr>
-		<tr><td>Used Size GB</td><td><input class="alignwidth" type="text" id="idData" value="1000"></input></td></tr>
-		<tr><td>Retention Points</td><td><input class="alignwidth" type="text" id="idRP" value="14"></input></td></tr>
-		<tr><td>Change Rate</td><td><input class="alignwidth" type="text" id="idDelta" value="10" ></input></td></tr>
-		<tr><td>Compression</td><td><input class="alignwidth" type="text" id="idCompression" value="50" ></input></td></tr>
-		<tr><td>Interval</td><td>
+		<tr><td>Used Size GB</td><td colspan="2"><input class="alignwidth" type="text" id="idData" value="1000"></input></td></tr>
+		<tr><td>Retention Points</td><td colspan="2"><input class="alignwidth" type="text" id="idRP" value="14"></input></td></tr>
+		<tr><td>Change Rate</td><td colspan="2">
+			<!--<input class="alignwidth" type="text" id="idDelta" value="10" ></input>-->
+			<select id="idDelta" class="alignwidth">
+				<option value="3">3%</option>
+				<option value="4">4%</option>
+				<option value="5">5% Optimistic</option>
+				<option value="6">6%</option>
+				<option value="7">7%</option>
+				<option value="8" >8%</option>
+				<option value="10"selected>10% Conservative</option>
+				<option value="12">12%</option>
+				<option value="15">15%</option>
+				<option value="20">20%</option>
+				<option value="25">25%</option>
+				<option value="30">30%</option>
+				<option value="35">35%</option>
+				<option value="40">40%</option>
+				<option value="50">50%</option>
+				<option value="60">60%</option>
+				<option value="70">70%</option>
+				<option value="80">80%</option>
+				<option value="80">90%</option>
+				<option value="80">100%</option>
+			</select>
+		</td></tr>
+		<tr><td>Data left after reduction</td><td colspan="2">
+			<!--<input class="alignwidth" type="text" id="idCompression" value="50" ></input>-->
+			<select id="idCompression" class="alignwidth">
+				<option value="20">20%</option>
+				<option value="30">30%</option>
+				<option value="35">35%</option>
+				<option value="40">40% Optimistic</option>
+				<option value="45">45%</option>
+				<option value="50" selected>50% Conservative</option>
+				<option value="55">55%</option>
+				<option value="60">60%</option>
+				<option value="65">65%</option>
+				<option value="70">70%</option>
+				<option value="80">80%</option>
+			</select>
+		</td></tr>
+		<tr><td>Interval</td><td colspan="2">
 			<select id="idInterval" class="alignwidth">
 				<option value="D" >Daily</option>
 				<option value="12" >Every 12 Hours</option>
@@ -1059,13 +1145,49 @@ If you require the old version for some reason, you can find it <a href="http://
 				<option value="1" >Hourly</option>
 			</select>
 			</td></tr>
-		<tr><td>Start Date</td><td>
+		<tr><td>Time Growth Simulation <input type="checkbox" id="idDataGrowth" onChange="toggleDataGrowth();return false;" ></td>
+			<td class="fixwidthhalf">
+			<select id="idDataGrowthYear" class="alignwidth" disabled>
+				<option value="0.5" >6 Months</option>
+				<option value="1" selected >1 Year</option>
+				<option value="2" selected >2 Year</option>
+				<option value="3" selected >3 Year</option>
+				<option value="4" selected >4 Year</option>
+				<option value="5" selected >5 Year</option>
+			</select>
+			</td><td class="fixwidthhalf">
+			<select id="idDataGrowthRate" class="alignwidth" disabled>
+				<option value="0">0%</option>
+				<option value="5">5%</option>
+				<option value="10">10%</option>
+				<option value="15">15%</option>
+				<option value="20">20%</option>
+				<option value="25">25%</option>
+				<option value="30" selected>30%</option>
+				<option value="35">35%</option>
+				<option value="40">40%</option>
+				<option value="45">45%</option>
+				<option value="50">50%</option>
+				<option value="55">55%</option>
+				<option value="60">60%</option>
+				<option value="65">65%</option>
+				<option value="70">70%</option>
+				<option value="75">75%</option>
+				<option value="80">80%</option>
+				<option value="85">85%</option>
+				<option value="90">90%</option>
+				<option value="95">95%</option>
+				<option value="100">100%</option>
+			</select>
+			</td>
+		</tr>
+		<!--<tr><td>Start Date</td><td>
 			<select id="idStart" class="alignwidth">
 				<option value="Tomorrow" >Tomorrow At 22</option>
 				<option value="FirstOfMonth" >First Of Next Month At 22</option>
 				<option value="FirstOfYear" >First Of Next Year At 22</option>
 			</select>
-		</td></tr>
+		</td></tr>-->
 	</table>
 </div>
 <div id="idDivForward" class="inputSpecific hiddenBlock" >
