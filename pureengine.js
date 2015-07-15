@@ -129,7 +129,9 @@ function VeeamBackupFileObjectInheritable(file,parent,type,fileSize,createDate,p
 			cloneObj.modifyDate = this.modifyDate.clone()
 		}
 
-		cloneObj.fileSize = fileSize
+		cloneObj.fileSize = this.fileSize
+		
+		
 		
 		$.each(this.GFSType,function( key, gfstype ) {
 			cloneObj.pushGFSType(gfstype)
