@@ -1,0 +1,18 @@
+0.3.1 :
+-Added space growth
+-Updated GUI for easier input
+
+0.3.0 :
+-Renewed merging engine, should mimic more how the production engine works (based on documentation)
+
+0.2.9 :
+-Easing function for working space also works for manual mode
+
+0.2.8 :
+-Easing function for working space
+
+0.2.7 : 
+-Added open source reference
+-Added css style to all items for more unified view
+-Added explanation for events in engine, needs gui
+-Changed the default change rate to 10%
