@@ -6,7 +6,9 @@
 a:hover, a:link, a:visited {
 	color: 333333;
 }
-
+.grey {
+	background-color:#cccccc
+}
 .hiddenBlock {
 	display:none;
 }

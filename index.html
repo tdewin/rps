@@ -521,6 +521,19 @@ function gfxTable()
 		this.lastel = td
 		return this	
 	}
+	this.a = function(text) {
+		var td = document.createElement("td");
+		var a = document.createElement("a");
+		a.setAttribute("href","#")
+		var t = document.createTextNode(text);
+		
+		a.appendChild(t)
+		td.appendChild(a)
+
+		this.lasttr.appendChild(td)
+		this.lastel = td
+		return this	
+	}	
 	this.img = function(src) {
 		var td = document.createElement("td");
 		var img = document.createElement("img");
@@ -556,7 +569,7 @@ function renderGFX(backupResult,showWorstCase)
 	var tableResult = $("#idTableResult")
 	tableResult.empty()
 	
-	
+	//
 	
 	var files = backupResult.getWorstCaseFiles()
 	if(!showWorstCase)
@@ -650,7 +663,8 @@ function renderGFX(backupResult,showWorstCase)
 				table.img("rpsimg/rev-down-img2.png")
 			}
 		}
-		table.td(file.file).td( humanReadableFilesizeWithForce(file.fileSize,unifiedeval)).td(file.modifyDate.format("YYYY-MM-DD dd HH")).td(file.pointDate.format("YYYY-MM-DD dd HH"))		
+		var hrfsize = humanReadableFilesizeWithForce(file.fileSize,unifiedeval)
+		table.td(file.file).a(hrfsize).attr("onClick","showVisualData(["+file.fileSize+"]);return false;").td(file.modifyDate.format("YYYY-MM-DD dd HH")).td(file.pointDate.format("YYYY-MM-DD dd HH"))		
 	}
 	table.tr().td("").td("").td("").td(filesizeTotal).attr("class","totalTopLine").td("").td("")
 	table.tr().td("").td("").td("Work Space").attr("class","alert").td("+"+workingSpace).attr("class","alert").td("").td("")
@@ -1031,8 +1045,13 @@ function toggleDataGrowth()
 	$('#idDataGrowthRate').prop('disabled',!toggle)
 	$('#idDataGrowthYear').prop('disabled',!(toggle && manrundisabled))
 }
-function showDialogDiv(divid)
+function showDialogDiv(divid,minWidthOverrides)
 {
+	minWidthin = 500
+	if(minWidthOverrides !== undefined)
+	{
+		minWidthin = minWidthOverrides
+	}
 	$("#"+divid).dialog({
 		modal: true,
 		buttons: {
@@ -1040,9 +1059,47 @@ function showDialogDiv(divid)
 				$( this ).dialog( "close" );
 			}
 		},
-		minWidth: 500
+		minWidth: minWidthin
 	});
 }
+
+function showVisualData(datasize)
+{
+		var table = new gfxTable().td("Data \\ Hours").attr("class","grey")
+		var tableResult = $("#idTableVisualData")
+		tableResult.empty()
+		
+		var hoursarr = [1,4,8,12,16,24]
+		$.each(hoursarr,function (key,hours) {
+				table.td(hours).attr("class","grey")
+		})
+		
+		fround = 1
+		
+		fsizeparam = {base: 2,round: fround}
+		fsizeparamb = {base: 2,round: fround,bits: true}
+		$.each(datasize,function (index,data) {
+			table.tr().td("").attr("class","grey").attr("style","height:2px;")
+			$.each(hoursarr,function (key,hours) {
+				table.td("").attr("class","grey").attr("style","height:2px;")
+			})
+			table.tr().td(filesize(data),fsizeparam).attr("class","grey")
+			$.each(hoursarr,function (key,hours) {
+					table.td(filesize(data/(hours*3600),fsizeparam)+"/s")
+			}) 	
+			
+			table.tr().td(filesize(data,fsizeparamb)+"it").attr("class","grey")
+			$.each(hoursarr,function (key,hours) {
+					table.td(filesize(data/(hours*3600),fsizeparamb)+"it/s")
+			}) 			
+		})
+		tableResult.append(table.gettbody())
+		showDialogDiv("idVisualData",700)
+}
+
+
+
+
 </script>
 
 
@@ -1068,6 +1125,12 @@ You can find help <a href="help.pdf">here</a></br>
 	<li><a href="http://medialize.github.io/URI.js/">URI.js</a></li>
 </ul>
 </div>
+<div id="idVisualData" class="hiddenBlock">
+		<table id="idTableVisualData" style="width:680px;">
+			<tbody></tbody>
+		</table>
+</div>
+
 <div>
 <h2>Quick Presets</h2>
 <table>
