@@ -500,7 +500,7 @@ function VeeamPureEngine()
 	PureEngineObj.log = []
 	
 	PureEngineObj.flags = {
-		incStars: false,
+		incStars: true,
 	}
 		
 	PureEngineObj.debugtime = function()
@@ -908,13 +908,12 @@ function VeeamPureEngine()
 			if(point.isMarkedForGFS())
 			{
 				//incStars
-				$.each($.unique(point.GFSType),function( key, gfstype ) {
 						if(pureEngineLocal.flags.incStars)
-						{
-							point.GFSPointids[gfstype] = "*"						
+						{				
+							$.each($.unique(point.GFSType),function( key, gfstype ) {
+										point.GFSPointids[gfstype] = "*"						
+							})
 						}
-
-				})
 			}
 			
 			simplepoint = simplepoint + 1

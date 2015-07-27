@@ -1066,13 +1066,13 @@ function showDialogDiv(divid,minWidthOverrides)
 
 function showVisualData(datasize)
 {
-		var table = new gfxTable().td("Data \\ Hours").attr("class","grey")
+		var table = new gfxTable().td("Data \\ Time").attr("class","grey")
 		var tableResult = $("#idTableVisualData")
 		tableResult.empty()
 		
 		var hoursarr = [1,4,8,12,16,24]
 		$.each(hoursarr,function (key,hours) {
-				table.td(hours).attr("class","grey")
+				table.td(hours+(hours == 1 ? " hour":" hours")).attr("class","grey")
 		})
 		
 		fround = 1
@@ -1080,10 +1080,12 @@ function showVisualData(datasize)
 		fsizeparam = {base: 2,round: fround}
 		fsizeparamb = {base: 2,round: fround,bits: true}
 		$.each(datasize,function (index,data) {
-			table.tr().td("").attr("class","grey").attr("style","height:2px;")
-			$.each(hoursarr,function (key,hours) {
-				table.td("").attr("class","grey").attr("style","height:2px;")
-			})
+			if(index != 0)
+			{
+				table.tr().td("").attr("class","grey").attr("style","height:2px;")
+				$.each(hoursarr,function (key,hours) {table.td("").attr("class","grey").attr("style","height:2px;")})
+			}
+			
 			table.tr().td(filesize(data),fsizeparam).attr("class","grey")
 			$.each(hoursarr,function (key,hours) {
 					table.td(filesize(data/(hours*3600),fsizeparam)+"/s")
@@ -1095,7 +1097,7 @@ function showVisualData(datasize)
 			}) 			
 		})
 		tableResult.append(table.gettbody())
-		showDialogDiv("idVisualData",700)
+		$("#idVisualData").show()
 }
 
 
@@ -1113,7 +1115,7 @@ function showVisualData(datasize)
 <div id="idreferences">
 <h1>The Restore Point Simulator</h1>
 Current version : <a href="release-notes.txt">0.3.1</a><br> 
-Feedback via <a href="https://twitter.com/intent/tweet?screen_name=tdewin" style="text-decoration:none;">@tdewin</a><br>
+Feedback via <a href="https://twitter.com/intent/tweet?screen_name=tdewin" style="text-decoration:none;">@tdewin</a> or on <a href="https://github.com/tdewin/rps/issues">GitHub</a><br>
 RPS heavily relies on some opensource <a href="#" onclick="showDialogDiv('idjavascript');return false;">javascript frameworks</a><br>
 You can find help <a href="help.pdf">here</a></br>
 </div>
@@ -1127,7 +1129,8 @@ You can find help <a href="help.pdf">here</a></br>
 </ul>
 </div>
 <div id="idVisualData" class="hiddenBlock">
-		<table id="idTableVisualData" style="width:680px;">
+		<p style="text-align: right;margin:1px; background-color:#deffde;"><span id="idVDclose" onclick="$('#idVisualData').hide()">X</span></p>
+		<table id="idTableVisualData">
 			<tbody></tbody>
 		</table>
 </div>
@@ -1215,12 +1218,18 @@ You can find help <a href="help.pdf">here</a></br>
 		<tr><td>Time Growth Simulation <input type="checkbox" id="idDataGrowth" onChange="toggleDataGrowth();return false;" ></td>
 			<td class="fixwidthhalf">
 			<select id="idDataGrowthYear" class="alignwidth" disabled>
+				<!-- (1..10) | % { write-host "<option value=""$_"">$_ Year</option>" } -->
 				<option value="0.5" >6 Months</option>
 				<option value="1" selected >1 Year</option>
-				<option value="2" selected >2 Year</option>
-				<option value="3" selected >3 Year</option>
-				<option value="4" selected >4 Year</option>
-				<option value="5" selected >5 Year</option>
+				<option value="2" >2 Year</option>
+				<option value="3" >3 Year</option>
+				<option value="4" >4 Year</option>
+				<option value="5" >5 Year</option>
+				<option value="6">6 Year</option>
+				<option value="7">7 Year</option>
+				<option value="8">8 Year</option>
+				<option value="9">9 Year</option>
+				<option value="10">10 Year</option>
 			</select>
 			</td><td class="fixwidthhalf">
 			<!-- 110,120,130,140,150,160,170,180,190,200,210,220,230,240,250,260,270,280,290,300 | % { write-host "<option value=""$_"">$_%</option>" } -->
