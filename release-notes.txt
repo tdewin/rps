@@ -1,6 +1,7 @@
 0.3.1 :
 -Added space growth
 -Updated GUI for easier input
+-Added possibility to see compressed throughput speed on repository by clicking the data size
 
 0.3.0 :
 -Renewed merging engine, should mimic more how the production engine works (based on documentation)
