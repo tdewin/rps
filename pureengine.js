@@ -1437,9 +1437,9 @@ function VeeamPureEngine()
 		}
 		else if(backupConfiguration.style == 3)
 		{
-			var addHours = steptimeinhours*(backupConfiguration.simplePoints+2)+48
+			var addHours = (steptimeinhours*(backupConfiguration.simplePoints+2)+48)+moment.duration({months:6}).asHours()
 			
-			var maxAdd = moment.duration({months:1}).asHours();
+			var maxAdd = moment.duration({months:6}).asHours();
 		
 			if(backupConfiguration.GFS["W"] > 0)
 			{
