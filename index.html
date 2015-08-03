@@ -17,7 +17,7 @@
 <body class="mainfont">
 
 <script src="jquery-2.0.1.min.js"></script>
-<script src="jquery-ui.min.js"></script>
+
 <script src="URI.js"></script>
 <script src="moment.min.js"></script>
 <script src="filesize-mod.js"></script>
@@ -499,6 +499,7 @@ function gfxTable()
 	this.tbody =  document.createElement("tbody");  
 	this.lasttr = document.createElement("tr"); 
 	this.lastel = this.lasttr
+	this.lasta = document.createElement("a");
 	
 	this.tbody.appendChild(this.lasttr)
 	
@@ -532,8 +533,13 @@ function gfxTable()
 
 		this.lasttr.appendChild(td)
 		this.lastel = td
+		this.lasta = a
 		return this	
 	}	
+	this.href = function(href) {
+		this.lasta.setAttribute("href",href)
+		return this
+	}
 	this.img = function(src) {
 		var td = document.createElement("td");
 		var img = document.createElement("img");
@@ -1046,28 +1052,44 @@ function toggleDataGrowth()
 	$('#idDataGrowthRate').prop('disabled',!toggle)
 	$('#idDataGrowthYear').prop('disabled',!(toggle && manrundisabled))
 }
-function showDialogDiv(divid,minWidthOverrides)
-{
-	minWidthin = 500
-	if(minWidthOverrides !== undefined)
-	{
-		minWidthin = minWidthOverrides
-	}
-	$("#"+divid).dialog({
-		modal: true,
-		buttons: {
-			Ok: function() {
-				$( this ).dialog( "close" );
-			}
-		},
-		minWidth: minWidthin
-	});
-}
 
+function showJS()
+{
+	var table = new gfxTable()
+	var tableResult = $("#idTablePopUpDiv")
+	tableResult.empty()
+	text = [
+		{txt:"jQuery",link:"http://jquery.com/"},
+		{txt:"jQuery UI",link:"http://jqueryui.com/"},
+		{txt:"MomentJS",link:"http://momentjs.com/"},
+		{txt:"FilesizeJS",link:"http://filesizejs.com/"},
+		{txt:"URI.js",link:"http://medialize.github.io/URI.js/"},
+	]
+	table.td("RPS wouldn't be possible without these frameworks:")
+	$.each(text,function(index,line) {
+		table.tr().a(line.txt).href(line.link)
+	})
+	tableResult.append(table.gettbody())
+	$("#idPopUpDiv").show()
+}
+function showHelp(title,text)
+{
+	var table = new gfxTable().td(title).attr("style","font-size:x-large;")
+	var tableResult = $("#idTablePopUpDiv")
+	tableResult.empty()
+	
+	$.each(text,function(index,line) {
+		if(index !=0) { table.tr().td("").attr("style","height:2px;") }
+		table.tr().td(line)
+	})
+	
+	tableResult.append(table.gettbody())
+	$("#idPopUpDiv").show()
+}
 function showVisualData(datasize)
 {
 		var table = new gfxTable().td("Data \\ Time").attr("class","grey")
-		var tableResult = $("#idTableVisualData")
+		var tableResult = $("#idTablePopUpDiv")
 		tableResult.empty()
 		
 		var hoursarr = [1,4,8,12,16,24]
@@ -1086,18 +1108,18 @@ function showVisualData(datasize)
 				$.each(hoursarr,function (key,hours) {table.td("").attr("class","grey").attr("style","height:2px;")})
 			}
 			
-			table.tr().td(filesize(data),fsizeparam).attr("class","grey")
+			table.tr().td(filesize(data),fsizeparam).attr("class","grey px112")
 			$.each(hoursarr,function (key,hours) {
-					table.td(filesize(data/(hours*3600),fsizeparam)+"/s")
+					table.td(filesize(data/(hours*3600),fsizeparam)+"/s").attr("class","px112")
 			}) 	
 			
-			table.tr().td(filesize(data,fsizeparamb)+"it").attr("class","grey")
+			table.tr().td(filesize(data,fsizeparamb)+"it").attr("class","grey px112")
 			$.each(hoursarr,function (key,hours) {
-					table.td(filesize(data/(hours*3600),fsizeparamb)+"it/s")
+					table.td(filesize(data/(hours*3600),fsizeparamb)+"it/s").attr("class","px112")
 			}) 			
 		})
 		tableResult.append(table.gettbody())
-		$("#idVisualData").show()
+		$("#idPopUpDiv").show()
 }
 
 
@@ -1116,21 +1138,12 @@ function showVisualData(datasize)
 <h1>The Restore Point Simulator</h1>
 Current version : <a href="release-notes.txt">0.3.1</a><br> 
 Feedback via <a href="https://twitter.com/intent/tweet?screen_name=tdewin" style="text-decoration:none;">@tdewin</a> or on <a href="https://github.com/tdewin/rps/issues">GitHub</a><br>
-RPS heavily relies on some opensource <a href="#" onclick="showDialogDiv('idjavascript');return false;">javascript frameworks</a><br>
-You can find help <a href="help.pdf">here</a></br>
+RPS heavily relies on some opensource <a href="#" onclick="showJS();return false;">javascript frameworks</a><br>
 </div>
-<div id="idjavascript" class="hiddenBlock">
-<ul>
-	<li><a href="http://jquery.com/">jQuery</a></li>
-	<li><a href="http://jqueryui.com/">jQuery UI</a></li>
-	<li><a href="http://momentjs.com/">Moment.js</a></li>
-	<li><a href="http://filesizejs.com/">filesize.js</a> / <a href="http://rps.dewin.me/filesize-mod.js">RPS MOD</a></li>
-	<li><a href="http://medialize.github.io/URI.js/">URI.js</a></li>
-</ul>
-</div>
-<div id="idVisualData" class="hiddenBlock">
-		<p style="text-align: right;margin:1px; background-color:#deffde;"><span id="idVDclose" onclick="$('#idVisualData').hide()">X</span></p>
-		<table id="idTableVisualData">
+
+<div id="idPopUpDiv" class="hiddenBlock">
+		<p style="text-align: right;margin:1px; background-color:#deffde;"><span id="idVDclose" onclick="$('#idPopUpDiv').hide()">X</span></p>
+		<table id="idTablePopUpDiv">
 			<tbody></tbody>
 		</table>
 </div>
@@ -1151,9 +1164,9 @@ You can find help <a href="help.pdf">here</a></br>
 				<option value="2" >Reverse</option>
 				<option value="3" >Backup Copy Job</option>
 			</select>
-		</td></tr>
-		<tr><td>Used Size GB</td><td colspan="2"><input class="alignwidth" type="text" id="idData" value="1000"></input></td></tr>
-		<tr><td>Retention Points</td><td colspan="2"><input class="alignwidth" type="text" id="idRP" value="14"></input></td></tr>
+		</td><td></td></tr>
+		<tr><td>Used Size GB</td><td colspan="2"><input class="alignwidth" type="text" id="idData" value="1000"></input></td><td></td></tr>
+		<tr><td>Retention Points</td><td colspan="2"><input class="alignwidth" type="text" id="idRP" value="14"></input></td><td></td></tr>
 		<tr><td>Change Rate</td><td colspan="2">
 			<!--<input class="alignwidth" type="text" id="idDelta" value="10" ></input>-->
 			<select id="idDelta" class="alignwidth">
@@ -1178,8 +1191,8 @@ You can find help <a href="help.pdf">here</a></br>
 				<option value="90">90%</option>
 				<option value="100">100%</option>
 			</select>
-		</td></tr>
-		<tr><td>Data left after reduction</td><td colspan="2">
+		</td><td><img src="rpsimg/help.png"  onclick="showHelp('Change Rate',['This parameter defines how much data changes between backup periods. It influences the size of incrementals. For example, if every day 10% of the data changes and the source size is 1024GB, then only 10% or 100MB needs to be backed up on a daily basis. This 100MB will be further reduced with the data reduction factor.']);return false;"/></td></tr>
+		<tr><td>Data left after reduction </td><td colspan="2">
 			<!--<input class="alignwidth" type="text" id="idCompression" value="50" ></input>-->
 			<!-- 
 			$step=5;$min=20;$max=100;(0..(($max-$min)/$step)) | % { ($_*$step)+$min } | % { write-host ("<option value=""{0}"">$_% (100GB > {0}GB)</option>" -f $_) } 
@@ -1203,7 +1216,9 @@ You can find help <a href="help.pdf">here</a></br>
 				<option value="95">95% (100GB > 95GB)</option>
 				<option value="100">100% (100GB > 100GB) No Compression</option>
 			</select>
-		</td></tr>
+		</td>
+		<td><img src="rpsimg/help.png"  onclick="showHelp('Data Reduction',['This parameter defines much data should be left after data reduction (mainly compression). The parameter is a factor of the original data. For example if you select 45% and the data set is 1TB, then the resulting full backup will be 450GB (Source Data * Data Reduction Factor in Percentages = Full Backup). The lower the percentage, the smaller the backup, so lower means aggressive. If you want to disable compression, choose 100% ','If you prefer a reduction factor, for example 2:1, you can easily calculate the input parameter by dividing 100 by the compression factor 2 which result in 50% (100/2). A compression, factor of 3:1 would be 100/3 = 33% =~ 35%','If you prefer a discount factor (like with sales), you can subtract your factor from 100%. For example if you want -40%, the input factor would be 100-40%=60%' ]);return false;"/></td>
+		</tr>
 		<tr><td>Interval</td><td colspan="2">
 			<select id="idInterval" class="alignwidth">
 				<option value="D" >Daily</option>
@@ -1214,7 +1229,7 @@ You can find help <a href="help.pdf">here</a></br>
 				<option value="2" >Every 2 Hours</option>
 				<option value="1" >Hourly</option>
 			</select>
-			</td></tr>
+			</td><td></td></tr>
 		<tr><td>Time Growth Simulation <input type="checkbox" id="idDataGrowth" onChange="toggleDataGrowth();return false;" ></td>
 			<td class="fixwidthhalf">
 			<select id="idDataGrowthYear" class="alignwidth" disabled>
@@ -1277,6 +1292,7 @@ You can find help <a href="help.pdf">here</a></br>
 				<option value="300">300%</option>
 			</select>
 			</td>
+			<td><img src="rpsimg/help.png"  onclick="showHelp('Time Growth',['This allows you to simulate a continuous data growth on a daily basis. The first parameter defines how long you want to run the simulation. The second parameter defines the yearly data growth in percentages','For example if you have 1000GB of source data, a time growth factor of 10% and do a simulation for 3 years, the data will grow like this : 1000*(1+10%)^1095/365 = 1000*1.1^3 = 1000*1.1*1.1*1.1 = 1331GB. You can easily test this by disabling data reduction (select 100%) and selecting reverse incremental.']);return false;"/></td>
 		</tr>
 		<!--<tr><td>Start Date</td><td>
 			<select id="idStart" class="alignwidth">
@@ -1284,7 +1300,7 @@ You can find help <a href="help.pdf">here</a></br>
 				<option value="FirstOfMonth" >First Of Next Month At 22</option>
 				<option value="FirstOfYear" >First Of Next Year At 22</option>
 			</select>
-		</td></tr>-->
+		</td><td></td></tr>-->
 	</table>
 </div>
 <div id="idDivForward" class="inputSpecific hiddenBlock" >
