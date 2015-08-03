@@ -17,7 +17,7 @@
 <body class="mainfont">
 
 <script src="jquery-2.0.1.min.js"></script>
-
+<script src="jquery-ui.min.js"></script>
 <script src="URI.js"></script>
 <script src="moment.min.js"></script>
 <script src="filesize-mod.js"></script>
@@ -38,11 +38,11 @@ function showInputsWithDefaults(style,forceDefaults)
 	if(forceDefaults)
 	{
 		var gsv = GUIStateVariables()
-		$.each(gsv.mappings,function(key,mapping) {
-			if(mapping.applicable == 0 || mapping.applicable == style)
-			{
-				mapping.setDefault()
-			}
+		$.each(gsv.mappings,function(key,mapping) { 
+				if((mapping.applicable == 0 || mapping.applicable == style))
+				{
+					mapping.setDefault()
+				}
 		});
 		
 		
@@ -177,6 +177,10 @@ function mapping(id,variable,applicable)
 		}
 		return urivar
 	}
+	this.guival = function() {
+		return $(this.id).val()
+	}
+	this.copySwitch = 0
 	
 	this.convert = function() {
 		return
@@ -250,6 +254,7 @@ function mappings()
 	
 	mappingObj = new mapping("#idData","size",0)
 	mappingObj.urivar = "s"
+	mappingObj.copySwitch = 1
 	mappingObj.convert = function () { return (parseInt($(this.id).val())*1024*1024*1024) }
 	mappingObj.setDefault = function() {
 		var scenario = mappingsLocal["scenario"].convert()
@@ -259,6 +264,7 @@ function mappings()
 	
 	mappingObj = new mapping("#idRP","retention",0)
 	mappingObj.urivar = "r"
+	mappingObj.copySwitch = 1
 	mappingObj.convert = convertInt
 	mappingObj.setDefault = function() {
 		var scenario = mappingsLocal["scenario"].convert()
@@ -268,12 +274,14 @@ function mappings()
 
 	mappingObj = new mapping("#idCompression","compression",0)
 	mappingObj.urivar = "c"
+	mappingObj.copySwitch = 1
 	mappingObj.convert = convertSelectInt
 	mappingObj.setDefault = setDefaultSelectInt
 	mappingsLocal[mappingObj.variable] = mappingObj	
 	
 	mappingObj = new mapping("#idDelta","changeRate",0)
 	mappingObj.urivar = "d"
+	mappingObj.copySwitch = 1
 	mappingObj.convert = convertSelectInt
 	mappingObj.setDefault = setDefaultSelectInt
 	mappingsLocal[mappingObj.variable] = mappingObj	
@@ -845,10 +853,20 @@ function simulate()
 	
 }
 
-function selectScenario()
+function selectScenario(urlswitch)
 {
 	var gsv = GUIStateVariables()
 	var selectedScenario = gsv.scenarios[$("#scenariosSelect option:selected").val()]
+	
+	if(!urlswitch)
+	{
+		$.each(gsv.mappings, function(mparam,mapping) {
+			if(mapping.copySwitch)
+			{
+				selectedScenario[mparam] = mapping.guival()
+			}
+		})
+	}
 	showInputs(selectedScenario.style)
 	
 }
@@ -979,9 +997,10 @@ $( document ).ready(function() {
 
 	
 	
-	selectScenario()
+	selectScenario(true)
+	
 	scenariosSelect.change(function() {
-		selectScenario()
+		selectScenario(false)
 	})
 	$("#idStyle").change(function() {
 		showInputsWithDefaults($("#idStyle option:selected").val(),false)
@@ -1142,7 +1161,7 @@ RPS heavily relies on some opensource <a href="#" onclick="showJS();return false
 </div>
 
 <div id="idPopUpDiv" class="hiddenBlock">
-		<p style="text-align: right;margin:1px; background-color:#deffde;"><span id="idVDclose" onclick="$('#idPopUpDiv').hide()">X</span></p>
+		<p style="text-align: right;margin:1px; background-color:#deffde;"><span id="idVDclose" onclick="$('#idPopUpDiv').hide()" class="cursorPointer">X</span></p>
 		<table id="idTablePopUpDiv">
 			<tbody></tbody>
 		</table>
@@ -1191,7 +1210,7 @@ RPS heavily relies on some opensource <a href="#" onclick="showJS();return false
 				<option value="90">90%</option>
 				<option value="100">100%</option>
 			</select>
-		</td><td><img src="rpsimg/help.png"  onclick="showHelp('Change Rate',['This parameter defines how much data changes between backup periods. It influences the size of incrementals. For example, if every day 10% of the data changes and the source size is 1024GB, then only 10% or 100MB needs to be backed up on a daily basis. This 100MB will be further reduced with the data reduction factor.']);return false;"/></td></tr>
+		</td><td><img src="rpsimg/help.png" class="cursorPointer"  onclick="showHelp('Change Rate',['This parameter defines how much data changes between backup periods. It influences the size of incrementals. For example, if every day 10% of the data changes and the source size is 1024GB, then only 10% or 100MB needs to be backed up on a daily basis. This 100MB will be further reduced with the data reduction factor.']);return false;"/></td></tr>
 		<tr><td>Data left after reduction </td><td colspan="2">
 			<!--<input class="alignwidth" type="text" id="idCompression" value="50" ></input>-->
 			<!-- 
@@ -1217,7 +1236,7 @@ RPS heavily relies on some opensource <a href="#" onclick="showJS();return false
 				<option value="100">100% (100GB > 100GB) No Compression</option>
 			</select>
 		</td>
-		<td><img src="rpsimg/help.png"  onclick="showHelp('Data Reduction',['This parameter defines much data should be left after data reduction (mainly compression). The parameter is a factor of the original data. For example if you select 45% and the data set is 1TB, then the resulting full backup will be 450GB (Source Data * Data Reduction Factor in Percentages = Full Backup). The lower the percentage, the smaller the backup, so lower means aggressive. If you want to disable compression, choose 100% ','If you prefer a reduction factor, for example 2:1, you can easily calculate the input parameter by dividing 100 by the compression factor 2 which result in 50% (100/2). A compression, factor of 3:1 would be 100/3 = 33% =~ 35%','If you prefer a discount factor (like with sales), you can subtract your factor from 100%. For example if you want -40%, the input factor would be 100-40%=60%' ]);return false;"/></td>
+		<td><img src="rpsimg/help.png"  class="cursorPointer" onclick="showHelp('Data Reduction',['This parameter defines how much data will be left after data reduction (mainly compression). The parameter is a factor of the original data. For example, if you select 45% and the data set is 1TB, then the resulting full backup will be 450GB (Source Data * Data Reduction Factor in Percentages = Full Backup). The lower the percentage, the smaller the backup. So a lower percentage means a more aggressive compression value. If you want to disable compression, choose 100%. ','If you prefer a reduction factor, for example 2:1, you can easily calculate the input parameter by dividing 100 by the compression factor 2, which results in 50% (100/2). A compression factor of 3:1 would be 100/3 = 33% =~ 35%.','If you prefer a discount factor (like with sales), you can subtract your factor from 100%. For example, if you want -40%, the input factor would be 100-40%=60%.' ]);return false;"/></td>
 		</tr>
 		<tr><td>Interval</td><td colspan="2">
 			<select id="idInterval" class="alignwidth">
@@ -1292,7 +1311,7 @@ RPS heavily relies on some opensource <a href="#" onclick="showJS();return false
 				<option value="300">300%</option>
 			</select>
 			</td>
-			<td><img src="rpsimg/help.png"  onclick="showHelp('Time Growth',['This allows you to simulate a continuous data growth on a daily basis. The first parameter defines how long you want to run the simulation. The second parameter defines the yearly data growth in percentages','For example if you have 1000GB of source data, a time growth factor of 10% and do a simulation for 3 years, the data will grow like this : 1000*(1+10%)^1095/365 = 1000*1.1^3 = 1000*1.1*1.1*1.1 = 1331GB. You can easily test this by disabling data reduction (select 100%) and selecting reverse incremental.']);return false;"/></td>
+			<td><img src="rpsimg/help.png"  class="cursorPointer" onclick="showHelp('Time Growth',['This allows you to simulate a continuous data growth on a daily basis. The first parameter defines how long you want to run the simulation. The second parameter defines the yearly data growth in percentages.','Imagine, you have 1000GB of source data and a time growth factor of 10%. If you execute a simulation for 3 years, the data growth will be calculated by using the following formula : 1000*(1+10%)^1095/365 = 1000*1.1^3 = 1000*1.1*1.1*1.1 = 1331GB. You can easily test this by disabling data reduction (select 100%) and selecting reverse incremental.']);return false;"/></td>
 		</tr>
 		<!--<tr><td>Start Date</td><td>
 			<select id="idStart" class="alignwidth">

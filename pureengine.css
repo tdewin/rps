@@ -18,7 +18,9 @@ a:hover, a:link, a:visited {
 .alignwidth:disabled {
 	background-color:#cccccc;
 }
-
+.cursorPointer {
+	cursor: pointer;
+}
 table.inputTable td.fixwidth {
 	width:400px;
 }
