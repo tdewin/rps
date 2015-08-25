@@ -593,29 +593,23 @@ function renderGFX(backupResult,showWorstCase)
 	//dirty hacking so that all the filesize suffixes are the same
 	var unifiedeval = 9
 	$.each(files,function(key,val) {
-		var testeval = filesize(val.fileSize, {base: 2,round: 2,output: "e"})
+		var testeval = filesize(val.getDataStats().f(), {base: 2,round: 2,output: "e"})
 		if (testeval < unifiedeval)
 		{
 			unifiedeval = testeval
 		}
 	});
 	
-	var filesizeTotal =  humanReadableFilesizeWithForce(backupResult.worstCaseSize,unifiedeval)
-	var workingSpace = humanReadableFilesizeWithForce(backupResult.worstCaseDayWorkingSpace,unifiedeval)
-	var grandTotal =  humanReadableFilesizeWithForce(backupResult.worstCaseSizeWithWorkingSpace,unifiedeval)
+	var filesizeTotalRaw =  backupResult.worstCaseSize
+	var workingSpaceRaw = backupResult.worstCaseDayWorkingSpace
+	var grandTotalRaw =  backupResult.worstCaseSizeWithWorkingSpace
 
-	
-	
 	
 	if(!showWorstCase)
 	{
-		var tmptfs = backupResult.getTotalSize()
-		var tmpws = backupResult.getWorkSpace()
-		
-
-		filesizeTotal =   humanReadableFilesizeWithForce(tmptfs,unifiedeval)
-		workingSpace = humanReadableFilesizeWithForce(tmpws,unifiedeval)
-		grandTotal =  humanReadableFilesizeWithForce((tmptfs+tmpws),unifiedeval)
+		filesizeTotalRaw = backupResult.getTotalSize()
+		workingSpaceRaw = backupResult.getWorkSpace()
+		grandTotalRaw =  (filesizeTotalRaw+workingSpaceRaw)
 		
 		if(backupResult.lastActionDate)
 		{
@@ -634,7 +628,17 @@ function renderGFX(backupResult,showWorstCase)
 		}
 	}
 	
+	var filesizeTotal =  humanReadableFilesizeWithForce(filesizeTotalRaw,unifiedeval)
+	var workingSpace = humanReadableFilesizeWithForce(workingSpaceRaw,unifiedeval)
+	var grandTotal =  humanReadableFilesizeWithForce(grandTotalRaw,unifiedeval)
 	
+	
+	var fulls = 0
+	var incs = 0
+	var fullmax = 0
+	var incmax = 0
+	var fulltotal = 0
+	var inctotal = 0
 	
 	var table = new gfxTable()
 	table.td("Retention").attr("class","widthpoint")
@@ -648,9 +652,13 @@ function renderGFX(backupResult,showWorstCase)
 	{
 		var file = files[counter]
 		table.tr().td(file.toRetentionString())
+		var fs = file.getDataStats().f()
 		
 		if(file.isVBK())
 		{
+			fulls++
+			if(fs > fullmax) { fullmax = fs }
+			fulltotal += fs
 			
 			if(file.isGFS()) {
 				table.img("rpsimg/gfs.png")
@@ -668,6 +676,10 @@ function renderGFX(backupResult,showWorstCase)
 		}
 		else
 		{
+			incs++
+			if(fs >incmax) { incmax = fs }
+			inctotal += fs
+			
 			if(file.type == "I")
 			{
 				table.img("rpsimg/inc-up-img2.png")
@@ -677,12 +689,30 @@ function renderGFX(backupResult,showWorstCase)
 				table.img("rpsimg/rev-down-img2.png")
 			}
 		}
-		var hrfsize = humanReadableFilesizeWithForce(file.fileSize,unifiedeval)
-		table.td(file.file).a(hrfsize).attr("onClick","showVisualData(["+file.fileSize+"]);return false;").td(file.modifyDate.format("YYYY-MM-DD dd HH")).td(file.pointDate.format("YYYY-MM-DD dd HH"))		
+		var hrfsize = humanReadableFilesizeWithForce(file.getDataStats().f(),unifiedeval)
+		table.td(file.file).a(hrfsize).attr("onClick","showVisualData(["+file.getDataStats().sd()+","+file.getDataStats().f()+"]);return false;").td(file.modifyDate.format("YYYY-MM-DD dd HH")).td(file.pointDate.format("YYYY-MM-DD dd HH"))		
 	}
 	table.tr().td("").td("").td("").td(filesizeTotal).attr("class","totalTopLine").td("").td("")
 	table.tr().td("").td("").td("Work Space").attr("class","alert").td("+"+workingSpace).attr("class","alert").td("").td("")
-	table.tr().td("").td("").td("").td(grandTotal).attr("class","totalTopLine").td("").td("")
+	
+	var s = {
+		cstring:"",
+		a:function(key,text) { this.cstring = ((this.cstring == "")?"":this.cstring+",")+"'"+key+"':'"+text+"'";return this },
+		g:function() {return "{"+this.cstring+"}"}
+	}
+	var gb = function (b) { return Math.ceil(b/1073741824) }
+	s.a('Fulls',fulls)
+	s.a('Incrementals',incs)
+	s.a('Average Full Size',gb(fulltotal/fulls))
+	s.a('Average Inc Size',gb(inctotal/incs))
+	s.a('Max Full Size',gb(fullmax))
+	s.a('Max Inc Size',gb(incmax))
+	s.a('Total Filesize',gb(filesizeTotalRaw))
+	s.a('Working Space',gb(workingSpaceRaw))
+	s.a('Total',gb(grandTotalRaw))
+	
+	
+	table.tr().td("").td("").td("").a(grandTotal).attr("class","totalTopLine").attr("onClick","showTable('Totals in GB',"+s.g()+")").td("").td("")
 	tableResult.append(table.gettbody())
 	resultdiv.show()
 	
@@ -1072,6 +1102,7 @@ function toggleDataGrowth()
 	$('#idDataGrowthYear').prop('disabled',!(toggle && manrundisabled))
 }
 
+
 function showJS()
 {
 	var table = new gfxTable()
@@ -1088,6 +1119,19 @@ function showJS()
 	$.each(text,function(index,line) {
 		table.tr().a(line.txt).href(line.link)
 	})
+	tableResult.append(table.gettbody())
+	$("#idPopUpDiv").show()
+}
+function showTable(title,text)
+{
+	var table = new gfxTable().td(title).attr("style","font-size:x-large;")
+	var tableResult = $("#idTablePopUpDiv")
+	tableResult.empty()
+	
+	$.each(text,function(label,text) {
+		table.tr().td(label).td(text)
+	})
+	
 	tableResult.append(table.gettbody())
 	$("#idPopUpDiv").show()
 }

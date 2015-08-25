@@ -47,12 +47,43 @@ VeeamBackupConfiguration:
 /*
 	Legacy Inheritance from link list mode (significantly slower in js)
 */
-function VeeamBackupFileObject(file,parent,type,fileSize,createDate,pointDate)
+if (typeof exports === 'object')
 {
-	var VeeamBackupFileObj = VeeamBackupFileObjectInheritable(file,parent,type,fileSize,createDate,pointDate)
+	var moment = require('./moment.min.js'),
+	filesize = require('./filesize-mod.js'),
+	jquery = require('./jquery-mini.js');
+	
+	exports.VeeamBackupConfigurationObject = function (style,simplePoints,sourceSize) {
+		return VeeamBackupConfigurationObject(style,simplePoints,sourceSize)
+	}
+	exports.VeeamBackupResultObject = function() {
+		return VeeamBackupResultObject()
+	}
+	exports.VeeamPureEngine = function() {
+		return VeeamPureEngine()
+	}
+}
+function VeeamBackupDataStats(f,s,c,d)
+{
+	return {
+		file:f,
+		source:s,
+		compression:c,
+		changeRate:d,
+		f:function () { return this.file },
+		s:function () { return this.source },
+		c:function () { return this.compression },
+		d:function () { return this.changeRate },
+		clone:function () { return VeeamBackupDataStats(this.file,this.source,this.compression,this.changeRate) },
+		sd:function () { return parseInt((this.source*this.changeRate)/100) }
+	}
+}
+function VeeamBackupFileObject(file,parent,type,dataStats,createDate,pointDate)
+{
+	var VeeamBackupFileObj = VeeamBackupFileObjectInheritable(file,parent,type,dataStats,createDate,pointDate)
 	return VeeamBackupFileObj
 }
-function VeeamBackupFileObjectInheritable(file,parent,type,fileSize,createDate,pointDate)
+function VeeamBackupFileObjectInheritable(file,parent,type,dataStats,createDate,pointDate)
 {
 	var VeeamBackupFileObj = new Object();
 	VeeamBackupFileObj.file = file
@@ -81,7 +112,15 @@ function VeeamBackupFileObjectInheritable(file,parent,type,fileSize,createDate,p
 	}
 	
 
-	VeeamBackupFileObj.fileSize = fileSize
+	VeeamBackupFileObj.fileSize = dataStats.file
+	VeeamBackupFileObj.dataStats = dataStats
+
+	VeeamBackupFileObj.getDataStats = function() { return this.dataStats }
+	VeeamBackupFileObj.setDataStats = function(dataStatsIn) {
+		this.fileSize = dataStatsIn.file
+		this.dataStats = dataStatsIn
+	}
+	
 	VeeamBackupFileObj.pointid = -1
 	VeeamBackupFileObj.flagForKeepId = 0
 	
@@ -117,7 +156,7 @@ function VeeamBackupFileObjectInheritable(file,parent,type,fileSize,createDate,p
 		var cloneObj = VeeamBackupFileNullObject()
 		if(type != 0 && createDate != 0 && pointDate !=0)
 		{
-			cloneObj = VeeamBackupFileObject(this.file,VeeamBackupFileNullObject(),this.type,this.fileSize,this.createDate.clone(),this.pointDate.clone())
+			cloneObj = VeeamBackupFileObject(this.file,VeeamBackupFileNullObject(),this.type,this.getDataStats().clone(),this.createDate.clone(),this.pointDate.clone())
 		}
 		cloneObj.pointid = this.pointid
 		cloneObj.flagForKeepId = this.flagForKeepId
@@ -129,8 +168,7 @@ function VeeamBackupFileObjectInheritable(file,parent,type,fileSize,createDate,p
 			cloneObj.modifyDate = this.modifyDate.clone()
 		}
 
-		cloneObj.fileSize = this.fileSize
-		
+		cloneObj.setDataStats(this.getDataStats().clone())
 		
 		
 		$.each(this.GFSType,function( key, gfstype ) {
@@ -154,7 +192,7 @@ function VeeamBackupFileObjectInheritable(file,parent,type,fileSize,createDate,p
 		if(keptFor != 0) { keptFor = " ("+keptFor+")" }
 		else { keptFor = ""}
 	
-		var retString = " "+this.type+" >> "+this.fullfile()+"\t<< "+filesize(this.fileSize, {base: 2,round: 0})+"\t"+this.pointid+keptFor+" MOD "+this.modifyStr()
+		var retString = " "+this.type+" >> "+this.fullfile()+"\t<< "+filesize(this.getDataStats().f(), {base: 2,round: 0})+"\t"+this.pointid+keptFor+" MOD "+this.modifyStr()
 		if(this.isMarkedForGFS())
 		{
 			if(this.type == "G")
@@ -202,7 +240,7 @@ function VeeamBackupFileObjectInheritable(file,parent,type,fileSize,createDate,p
 
 function VeeamBackupFileNullObject()
 {
-	var VeeamBackupFileObjNull = VeeamBackupFileObjectInheritable(0,0,0,0,0,0);
+	var VeeamBackupFileObjNull = VeeamBackupFileObjectInheritable(0,0,0,VeeamBackupDataStats(0,0,0,0),0,0);
 
 	VeeamBackupFileObjNull.fullfile = function () { return "<null>" }
 	VeeamBackupFileObjNull.modifyStr = function () { return "<null>" }
@@ -265,7 +303,27 @@ function VeeamBackupConfigurationObject(style,simplePoints,sourceSize)
 		}
 		return toReturn
 	}
-
+	
+	VeeamBackupConfigurationObj.getFullDataStats = function (calcdate) {
+		var sourcevar = this.getSourceSize(calcdate)
+		var filevar = sourcevar*(this.compression/100)
+		return VeeamBackupDataStats(filevar,sourcevar,this.compression,100)
+	}
+	
+	VeeamBackupConfigurationObj.getIncrementalDataStats = function (calcdate) {
+		var sourcevar = this.getSourceSize(calcdate)
+	
+		var compressionvar = this.compression
+		if(this.compressionDelta)
+		{
+			compressionvar = compressionDelta
+		}
+		var filevar = sourcevar*(this.changeRate/100)*(compressionvar/100)
+			
+		return VeeamBackupDataStats(filevar,sourcevar,this.compressionvar,this.changeRate)
+	}
+	
+	
 	
 	
 	
@@ -467,12 +525,12 @@ function VeeamBackupResultObject()
 		for(var counter=0;counter < ret.length;counter = counter +1 )
 		{
 			var point = ret[counter]
-			totalSize += point.fileSize
+			totalSize += point.getDataStats().f()
 		}
 		for(var counter=0;counter < gfs.length;counter = counter +1 )
 		{
 			var point = gfs[counter]
-			totalSize += point.fileSize
+			totalSize += point.getDataStats().f()
 		}
 		
 		return totalSize
@@ -1049,7 +1107,7 @@ function VeeamPureEngine()
 									//stages based on http://helpcenter.veeam.com/backup/80/vsphere/backup_copy_gfs_weekly_cycle.html
 									//stage 1 of GFS marked parent
 									var removedparent = newRet.pop()
-									parent = VeeamBackupFileObject("full.vbk",VeeamBackupFileNullObject(),"S",removedparent.fileSize,mergetime.clone(),removedparent.pointDate.clone())
+									parent = VeeamBackupFileObject("full.vbk",VeeamBackupFileNullObject(),"S",removedparent.getDataStats(),mergetime.clone(),removedparent.pointDate.clone())
 									parent.GFSType = point.GFSType
 									parent.GFSPointids = point.GFSPointids
 									//connect incs to new compacted father
@@ -1059,7 +1117,7 @@ function VeeamPureEngine()
 									}
 									
 									newRet.push(parent)
-									backupResult.addLastAction(VeeamBackupLastActionObject(0,"Copied data from Full and Inc SEQ 2x I/O Read, Write / 2x "+ this.humanReadableFilesize(parent.fileSize)))
+									backupResult.addLastAction(VeeamBackupLastActionObject(0,"Copied data from Full and Inc SEQ 2x I/O Read, Write / 2x "+ this.humanReadableFilesize(parent.getDataStats().f())))
 									
 									//stage 2 recycling VIB
 									point.modifyDate = mergetime.clone()
@@ -1081,11 +1139,11 @@ function VeeamPureEngine()
 									parent.type = "S"
 									parent.GFSType = point.GFSType
 									parent.GFSPointids = point.GFSPointids
-									parent.fileSize = backupConfiguration.getFullSize(point.pointDate.clone())
+									parent.setDataStats(backupConfiguration.getFullDataStats(point.pointDate.clone()))
 									
 									point.modifyDate = mergetime.clone()
 									recyclebin.push(point)
-									backupResult.addLastAction(VeeamBackupLastActionObject(0,"Merging VBK/VIB / RAND 2x I/O Read, Write / 2x "+ this.humanReadableFilesize(point.fileSize)))
+									backupResult.addLastAction(VeeamBackupLastActionObject(0,"Merging VBK/VIB / RAND 2x I/O Read, Write / 2x "+ this.humanReadableFilesize(point.getDataStats().f())))
 									backupResult.addLastAction(VeeamBackupLastActionObject(0,"Deleting merged VIB File"))
 								}
 								
@@ -1116,84 +1174,6 @@ function VeeamPureEngine()
 		
 	}
 	
-	//this is an old deprecated mode kept for one version for easy revert
-	//merging does not delete points that it did not merge (or should not ;))
-	PureEngineObj.mergeNewestVBK = function(backupResult,backupConfiguration,mergetime)
-	{
-		this.recalcPointIDs(backupConfiguration,backupResult)
-		
-		var recyclebin = [] 
-		var ret = backupResult.retention
-		var gfs = backupResult.GFS
-		var newRet = []
-		
-		if(ret.length > 0 && ret[0].isVBK())
-		{
-			var parent = ret[0]
-			newRet.push(parent)
-			
-			var doneMerging = 0
-			
-			for(var counter=1;counter < ret.length;counter = counter +1 )
-			{
-				var point = ret[counter]
-				if(!doneMerging)
-				{
-					if(point.parent == parent  && point.pointid >= backupConfiguration.simplePoints)
-					{
-							parent.modifyDate = mergetime.clone()
-							parent.pointDate = point.pointDate.clone()
-							parent.pointid = point.pointid
-							parent.type = "S"
-							
-							point.modifyDate = mergetime.clone()
-							
-							recyclebin.push(point)
-							backupResult.addLastAction(VeeamBackupLastActionObject(0,"Merging VBK/VIB / RAND 2x I/O Read, Write / 2x "+ this.humanReadableFilesize(point.fileSize)))
-							backupResult.addLastAction(VeeamBackupLastActionObject(0,"Deleting merged VIB File"))
-							
-							if(point.isMarkedForGFS())
-							{
-								parent.GFSType = point.GFSType
-								parent.GFSPointids = point.GFSPointids
-								
-								parent.type = "G"
-								parent.flagForKeepId = 0
-
-								//lets execute compacting as well
-								gfs.push(newRet.pop())
-								
-								
-								var compactedPoint = VeeamBackupFileObject("full.vbk",VeeamBackupFileNullObject(),"S",parent.fileSize,mergetime.clone(),parent.pointDate.clone())
-								for(var updatecounter=counter;updatecounter < ret.length && ret[updatecounter].parent == parent;updatecounter = updatecounter +1 )
-								{
-									ret[updatecounter].parent = compactedPoint
-								}
-								parent = compactedPoint
-								newRet.push(parent)
-								backupResult.addLastAction(VeeamBackupLastActionObject(0,"Copied & locked VBK for GFS / SEQ 2x I/O Read, Write / 2x "+ this.humanReadableFilesize(parent.fileSize)))
-								
-							}
-
-
-					}
-					else
-					{
-						newRet.push(point)
-						doneMerging = 1
-					}
-				}
-				else
-				{
-					newRet.push(point)
-				}
-			}
-			
-		}
-		backupResult.garbage.concat(recyclebin)
-		backupResult.retention = newRet
-		
-	}
 	
 	
 	//give me fulls today
@@ -1300,12 +1280,12 @@ function VeeamPureEngine()
 		for(var counter=0;counter < ret.length;counter = counter +1 )
 		{
 			var point = ret[counter]
-			totalSize += point.fileSize
+			totalSize += point.getDataStats().f()
 		}
 		for(var counter=0;counter < gfs.length;counter = counter +1 )
 		{
 			var point = gfs[counter]
-			totalSize += point.fileSize
+			totalSize += point.getDataStats().f()
 		}
 		totalSizeWW = totalSize + workingSpace
 		
@@ -1517,10 +1497,10 @@ function VeeamPureEngine()
 				if(backupConfiguration.style == 3) { firsttype = "S"}
 				
 				
-				var fullbackup = VeeamBackupFileObject("full.vbk",VeeamBackupFileNullObject(),firsttype,backupConfiguration.getFullSize(exectime.clone()),exectime.clone(),exectime.clone())
+				var fullbackup = VeeamBackupFileObject("full.vbk",VeeamBackupFileNullObject(),firsttype,backupConfiguration.getFullDataStats(exectime.clone()),exectime.clone(),exectime.clone())
 				fullbackup.pointid = 1
 				backupResult.retentionPush(fullbackup)
-				backupResult.addLastAction(VeeamBackupLastActionObject(0,"Created VBK / SEQ 1x I/O Write / 1x "+ this.humanReadableFilesize(fullbackup.fileSize)))
+				backupResult.addLastAction(VeeamBackupLastActionObject(0,"Created VBK / SEQ 1x I/O Write / 1x "+ this.humanReadableFilesize(fullbackup.getDataStats().f())))
 				
 				exectime = exectime.add(steptime)
 				
@@ -1553,15 +1533,15 @@ function VeeamPureEngine()
 					//active day, then lets do an active backup
 					if(activeAlreadyDone.active.isnull() && this.testActiveFull(exectime.clone(),backupConfiguration)) 
 					{
-						newpoint = VeeamBackupFileObject("full.vbk",VeeamBackupFileNullObject(),"F",backupConfiguration.getFullSize(exectime.clone()),exectime.clone(),exectime.clone())
+						newpoint = VeeamBackupFileObject("full.vbk",VeeamBackupFileNullObject(),"F",backupConfiguration.getFullDataStats(exectime.clone()),exectime.clone(),exectime.clone())
 						activeAlreadyDone.active = newpoint
-						backupResult.addLastAction(VeeamBackupLastActionObject(0,"Created VBK / SEQ 1x I/O Write / 1x "+ this.humanReadableFilesize(newpoint.fileSize)))
+						backupResult.addLastAction(VeeamBackupLastActionObject(0,"Created VBK / SEQ 1x I/O Write / 1x "+ this.humanReadableFilesize(newpoint.getDataStats().f())))
 					}
 					else if ($.inArray(latest.type,["F","S","I"]) == -1)
 					{
-						newpoint = VeeamBackupFileObject("full.vbk",VeeamBackupFileNullObject(),"F",backupConfiguration.getFullSize(exectime.clone()),exectime.clone(),exectime.clone())
+						newpoint = VeeamBackupFileObject("full.vbk",VeeamBackupFileNullObject(),"F",backupConfiguration.getFullDataStats(exectime.clone()),exectime.clone(),exectime.clone())
 						activeAlreadyDone.active = newpoint
-						backupResult.addLastAction(VeeamBackupLastActionObject(0,"Force Created VBK (could not find for vib) /  SEQ 1x I/O Write / 1x "+ this.humanReadableFilesize(newpoint.fileSize)))
+						backupResult.addLastAction(VeeamBackupLastActionObject(0,"Force Created VBK (could not find for vib) /  SEQ 1x I/O Write / 1x "+ this.humanReadableFilesize(newpoint.getDataStats().f())))
 						
 					}
 					else
@@ -1570,15 +1550,15 @@ function VeeamPureEngine()
 						//if it was an increment, we should connect it to the parent of the increment
 						if(latest.isVBK())
 						{
-							newpoint = VeeamBackupFileObject("incremental.vib",latest,"I",backupConfiguration.getIncrementalSize(exectime.clone()),exectime.clone(),exectime.clone())
+							newpoint = VeeamBackupFileObject("incremental.vib",latest,"I",backupConfiguration.getIncrementalDataStats(exectime.clone()),exectime.clone(),exectime.clone())
 							//this.debugln("parent link "+newpoint.parent,1)
 						}
 						else
 						{
-							newpoint = VeeamBackupFileObject("incremental.vib",latest.parent,"I",backupConfiguration.getIncrementalSize(exectime.clone()),exectime.clone(),exectime.clone())
+							newpoint = VeeamBackupFileObject("incremental.vib",latest.parent,"I",backupConfiguration.getIncrementalDataStats(exectime.clone()),exectime.clone(),exectime.clone())
 							//this.debugln("peer link "+newpoint.parent,1)
 						}
-						backupResult.addLastAction(VeeamBackupLastActionObject(0,"Created VIB /  SEQ 1x I/O Write / 1x  "+ this.humanReadableFilesize(newpoint.fileSize)))
+						backupResult.addLastAction(VeeamBackupLastActionObject(0,"Created VIB /  SEQ 1x I/O Write / 1x  "+ this.humanReadableFilesize(newpoint.getDataStats().f())))
 					}
 					backupResult.retentionPush(newpoint)
 	
@@ -1595,10 +1575,10 @@ function VeeamPureEngine()
 							
 							
 							var popInc = backupResult.retentionPop()
-							var synth = VeeamBackupFileObject("full.vbk",VeeamBackupFileNullObject(),"S",backupConfiguration.getFullSize(exectime.clone()),exectime.clone(),popInc.pointDate.clone())
+							var synth = VeeamBackupFileObject("full.vbk",VeeamBackupFileNullObject(),"S",backupConfiguration.getFullDataStats(exectime.clone()),exectime.clone(),popInc.pointDate.clone())
 							backupResult.retentionPush(synth)
 							
-							backupResult.addLastAction(VeeamBackupLastActionObject(0,"Synthetic VBK /  RAND 2x I/O Write / 2x "+ this.humanReadableFilesize(synth.fileSize)))
+							backupResult.addLastAction(VeeamBackupLastActionObject(0,"Synthetic VBK /  RAND 2x I/O Write / 2x "+ this.humanReadableFilesize(synth.getDataStats().f())))
 							
 							popInc.modify = exectime.clone()
 							backupResult.garbage.push(popInc)
@@ -1628,10 +1608,10 @@ function VeeamPureEngine()
 					
 					if(activeAlreadyDone.active.isnull() && this.testActiveFull(exectime.clone(),backupConfiguration)) 
 					{
-						newpoint = VeeamBackupFileObject("full.vbk",VeeamBackupFileNullObject(),"F",backupConfiguration.getFullSize(exectime.clone()),exectime.clone(),exectime.clone())
+						newpoint = VeeamBackupFileObject("full.vbk",VeeamBackupFileNullObject(),"F",backupConfiguration.getFullDataStats(exectime.clone()),exectime.clone(),exectime.clone())
 						activeAlreadyDone.active = newpoint
 						
-						backupResult.addLastAction(VeeamBackupLastActionObject(0,"Created VBK /  SEQ 1x I/O Write / 1x  "+ this.humanReadableFilesize(newpoint.fileSize)))
+						backupResult.addLastAction(VeeamBackupLastActionObject(0,"Created VBK /  SEQ 1x I/O Write / 1x  "+ this.humanReadableFilesize(newpoint.getDataStats().f())))
 						
 					}
 					else 
@@ -1643,18 +1623,18 @@ function VeeamPureEngine()
 						{
 							newpoint = backupResult.retentionPop()
 							//stack a reverse point with the pointDate of the VBK, then update the VBK to be the latest
-							backupResult.retentionPush(VeeamBackupFileObject("reverse.vrb",newpoint,"R",backupConfiguration.getIncrementalSize(newpoint.pointDate.clone()),exectime.clone(),newpoint.pointDate.clone()))
+							backupResult.retentionPush(VeeamBackupFileObject("reverse.vrb",newpoint,"R",backupConfiguration.getIncrementalDataStats(newpoint.pointDate.clone()),exectime.clone(),newpoint.pointDate.clone()))
 							newpoint.modifyDate = exectime.clone()
 							newpoint.pointDate = exectime.clone()
 							newpoint.type = "S"
-							newpoint.fileSize = backupConfiguration.getFullSize(exectime.clone())
+							newpoint.setDataStats(backupConfiguration.getFullDataStats(exectime.clone()))
 							
-							backupResult.addLastAction(VeeamBackupLastActionObject(0,"Created VRB /  RAND 3x I/O Read VBK, Write VRB, Update VBK / 3x "+ this.humanReadableFilesize(newpoint.fileSize)))
+							backupResult.addLastAction(VeeamBackupLastActionObject(0,"Created VRB /  RAND 3x I/O Read VBK, Write VRB, Update VBK / 3x "+ this.humanReadableFilesize(newpoint.getDataStats().f())))
 						}
 						else
 						{
 							//should not happen
-							newpoint = VeeamBackupFileObject("full.vbk",VeeamBackupFileNullObject(),"F",backupConfiguration.getFullSize(exectime.clone()),exectime.clone(),exectime.clone())
+							newpoint = VeeamBackupFileObject("full.vbk",VeeamBackupFileNullObject(),"F",backupConfiguration.getFullDataStats(exectime.clone()),exectime.clone(),exectime.clone())
 						}
 					}
 					backupResult.retentionPush(newpoint)
@@ -1677,15 +1657,15 @@ function VeeamPureEngine()
 						backupResult.beginAction(exectime.clone())
 						var latest = backupResult.retentionLatest()
 						
-						newpoint = VeeamBackupFileObject("incremental.vib",VeeamBackupFileNullObject(),"I",backupConfiguration.getIncrementalSize(exectime.clone()),exectime.clone(),exectime.clone())
+						newpoint = VeeamBackupFileObject("incremental.vib",VeeamBackupFileNullObject(),"I",backupConfiguration.getIncrementalDataStats(exectime.clone()),exectime.clone(),exectime.clone())
 						if ($.inArray(latest.type,["F","S","I"]) == -1)
 						{
-							newpoint = VeeamBackupFileObject("full.vbk",VeeamBackupFileNullObject(),"F",backupConfiguration.getFullSize(exectime.clone()),exectime.clone(),exectime.clone())
-							backupResult.addLastAction(VeeamBackupLastActionObject(0,"Force Created VBK (could not find for vib) /  SEQ 1x I/O Write / 1x "+ this.humanReadableFilesize(newpoint.fileSize)))
+							newpoint = VeeamBackupFileObject("full.vbk",VeeamBackupFileNullObject(),"F",backupConfiguration.getFullDataStats(exectime.clone()),exectime.clone(),exectime.clone())
+							backupResult.addLastAction(VeeamBackupLastActionObject(0,"Force Created VBK (could not find for vib) /  SEQ 1x I/O Write / 1x "+ this.humanReadableFilesize(newpoint.getDataStats().f())))
 						}
 						else
 						{
-							backupResult.addLastAction(VeeamBackupLastActionObject(0,"Created VIB /  SEQ 1x I/O Write / 1x  "+ this.humanReadableFilesize(newpoint.fileSize)))
+							backupResult.addLastAction(VeeamBackupLastActionObject(0,"Created VIB /  SEQ 1x I/O Write / 1x  "+ this.humanReadableFilesize(newpoint.getDataStats().f())))
 							//if the previous point was a vbk, this point his parent will be the previous point
 							//if it was an increment, we should connect it to the parent of the increment
 							if(latest.isVBK())
