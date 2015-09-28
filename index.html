@@ -712,7 +712,7 @@ function renderGFX(backupResult,showWorstCase)
 	s.a('Total',gb(grandTotalRaw))
 	
 	
-	table.tr().td("").td("").td("").a(grandTotal).attr("class","totalTopLine").attr("onClick","showTable('Totals in GB',"+s.g()+")return false;").td("").td("")
+	table.tr().td("").td("").td("").a(grandTotal).attr("class","totalTopLine").attr("onClick","showTable('Totals in GB',"+s.g()+");return false;").td("").td("")
 	tableResult.append(table.gettbody())
 	resultdiv.show()
 	
