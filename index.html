@@ -695,6 +695,7 @@ function renderGFX(backupResult,showWorstCase)
 	table.tr().td("").td("").td("").td(filesizeTotal).attr("class","totalTopLine").td("").td("")
 	table.tr().td("").td("").td("Work Space").attr("class","alert").td("+"+workingSpace).attr("class","alert").td("").td("")
 	
+	//generating some object code here {"Fulls":fulls,"Incs":incs}
 	var s = {
 		cstring:"",
 		a:function(key,text) { this.cstring = ((this.cstring == "")?"":this.cstring+",")+"'"+key+"':'"+text+"'";return this },
@@ -1185,7 +1186,17 @@ function showVisualData(datasize)
 		$("#idPopUpDiv").show()
 }
 
-
+function gbcheck(jobject)
+{
+	var jqo = $(jobject)
+	var data = jqo.val();
+	var exp={t:1,p:2};
+	var tbtest = /^([0-9]+)[ ]?([TtPp])[Bb]$/.exec(data); 
+	if(tbtest) { 
+		jqo.val(parseInt(tbtest[1])*Math.pow(1024,exp[tbtest[2].toLowerCase()])) 
+	} 
+	else if(!(/^([0-9]+)$/.test(data))) { jqo.val(1000) }
+}
 
 
 </script>
@@ -1199,7 +1210,7 @@ function showVisualData(datasize)
 </div>
 <div id="idreferences">
 <h1>The Restore Point Simulator</h1>
-Current version : <a href="release-notes.txt">0.3.1</a><br> 
+Current version : <a href="release-notes.txt">0.3.2</a><br> 
 Feedback via <a href="https://twitter.com/intent/tweet?screen_name=tdewin" style="text-decoration:none;">@tdewin</a> or on <a href="https://github.com/tdewin/rps/issues">GitHub</a><br>
 RPS heavily relies on some opensource <a href="#" onclick="showJS();return false;">javascript frameworks</a><br>
 </div>
@@ -1228,7 +1239,7 @@ RPS heavily relies on some opensource <a href="#" onclick="showJS();return false
 				<option value="3" >Backup Copy Job</option>
 			</select>
 		</td><td></td></tr>
-		<tr><td>Used Size GB</td><td colspan="2"><input class="alignwidth" type="text" id="idData" value="1000"></input></td><td></td></tr>
+		<tr><td>Used Size GB</td><td colspan="2"><input class="alignwidth" type="text" id="idData" value="1000" onchange="gbcheck(this);return false" ></input></td><td></td></tr>
 		<tr><td>Retention Points</td><td colspan="2"><input class="alignwidth" type="text" id="idRP" value="14"></input></td><td></td></tr>
 		<tr><td>Change Rate</td><td colspan="2">
 			<!--<input class="alignwidth" type="text" id="idDelta" value="10" ></input>-->

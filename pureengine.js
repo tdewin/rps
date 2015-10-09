@@ -1623,13 +1623,14 @@ function VeeamPureEngine()
 						{
 							newpoint = backupResult.retentionPop()
 							//stack a reverse point with the pointDate of the VBK, then update the VBK to be the latest
-							backupResult.retentionPush(VeeamBackupFileObject("reverse.vrb",newpoint,"R",backupConfiguration.getIncrementalDataStats(newpoint.pointDate.clone()),exectime.clone(),newpoint.pointDate.clone()))
+							var reversefile = VeeamBackupFileObject("reverse.vrb",newpoint,"R",backupConfiguration.getIncrementalDataStats(newpoint.pointDate.clone()),exectime.clone(),newpoint.pointDate.clone())
+							backupResult.retentionPush(reversefile)
 							newpoint.modifyDate = exectime.clone()
 							newpoint.pointDate = exectime.clone()
 							newpoint.type = "S"
 							newpoint.setDataStats(backupConfiguration.getFullDataStats(exectime.clone()))
 							
-							backupResult.addLastAction(VeeamBackupLastActionObject(0,"Created VRB /  RAND 3x I/O Read VBK, Write VRB, Update VBK / 3x "+ this.humanReadableFilesize(newpoint.getDataStats().f())))
+							backupResult.addLastAction(VeeamBackupLastActionObject(0,"Created VRB /  RAND 3x I/O Read VBK, Write VRB, Update VBK / 3x "+ this.humanReadableFilesize(reversefile.getDataStats().f())))
 						}
 						else
 						{
