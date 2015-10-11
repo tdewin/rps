@@ -1,3 +1,6 @@
+0.3.2b:
+-Input validation RPs: You can now input 7d (7days), 2w (2weeks), 2q (2quarters) or 1y (1year). Will also take into account the selected interval.
+
 0.3.2:
 -Bandwidth help : click on the files size to get the number in bit vs bytes and over certain bandwidth periods
 -Summary table : click on the total size to get a summary of the "sizing"

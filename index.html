@@ -1190,14 +1190,34 @@ function gbcheck(jobject)
 {
 	var jqo = $(jobject)
 	var data = jqo.val();
-	var exp={t:1,p:2};
-	var tbtest = /^([0-9]+)[ ]?([TtPp])[Bb]$/.exec(data); 
+	var exp={m:-1,g:0,t:1,p:2};
+	var tbtest = /^([0-9.]+)[ ]?([mgtp])[b]?$/i.exec(data); 
 	if(tbtest) { 
-		jqo.val(parseInt(tbtest[1])*Math.pow(1024,exp[tbtest[2].toLowerCase()])) 
+		var calc = Math.ceil(parseFloat(tbtest[1])*Math.pow(1024,exp[tbtest[2].toLowerCase()]))
+		jqo.val(calc) 
 	} 
-	else if(!(/^([0-9]+)$/.test(data))) { jqo.val(1000) }
+	else if(!(/^([0-9]+)$/.test(data))) { var val = data.replace(/[^0-9.]+/g,""); jqo.val((val == "")?1000:Math.ceil(val)) }
 }
-
+function rpcheck(jobject,defaultval) {
+	var jqo = $(jobject)
+	var data = jqo.val();
+	var multi={d:1,w:7,m:31,q:92,y:365};
+	var multitest = /^([0-9.]+)[ ]?([dwmqy])?$/i.exec(data); 
+	if(multitest) { 
+		var gsv = GUIStateVariables()
+		var interval = gsv.mappings["interval"].convert()
+		var intervalmulti = 1
+		if(interval.hours !== undefined)
+		{
+			intervalmulti = 24/(interval.hours)
+		}
+		var c = Math.ceil
+		var calc = c(parseFloat(multitest[1])*multi[multitest[2].toLowerCase()]*intervalmulti)
+		
+		jqo.val(calc) 
+	}
+	else if(!(/^([0-9]+)$/.test(data))) { var val = data.replace(/[^0-9.]+/g,""); jqo.val((val == "")?defaultval:Math.ceil(val)) }
+}
 
 </script>
 
@@ -1239,8 +1259,16 @@ RPS heavily relies on some opensource <a href="#" onclick="showJS();return false
 				<option value="3" >Backup Copy Job</option>
 			</select>
 		</td><td></td></tr>
-		<tr><td>Used Size GB</td><td colspan="2"><input class="alignwidth" type="text" id="idData" value="1000" onchange="gbcheck(this);return false" ></input></td><td></td></tr>
-		<tr><td>Retention Points</td><td colspan="2"><input class="alignwidth" type="text" id="idRP" value="14"></input></td><td></td></tr>
+		<tr><td>Used Size GB</td><td colspan="2"><input class="alignwidth" type="text" id="idData" value="1000" onchange="gbcheck(this);return false" ></input></td>
+		<td><img src="rpsimg/help.png"  class="cursorPointer" onclick="showHelp('Data Input',['Define how much data is being used in production in gigabyte.',' If you have a bigger environment and you want to enter for example 10tb, you can also enter \'10tb\' without quotes. The moment you go to another field, push enter or click simulate, the value will be converted.','You can also enter floats like \'1.5pb\'.','The field is not case sensitive and the trailing b for byte is optional','Examples: 5.5t, .5p, 512tb, 10TB']);return false;"/></td>
+		</tr>
+		<tr><td>Retention Points</td><td colspan="2"><input class="alignwidth" type="text" id="idRP" value="14" onchange="rpcheck(this,14);return false" ></input></td>
+		<td><img src="rpsimg/help.png"  class="cursorPointer" onclick="showHelp('Restore Points',['How many restore points do you want to keep? This number is the amount of backups and is not necessarily expressed in days. If you want to express it in days, make sure you select a daily interval',
+			'If for example you select for example hourly interval, and you enter 24 restore points, you will get 1 days worth of backup',
+			'You can also input also time span by adding the correct suffix. For example if you want 7 days worth of backup, taking in consideration the backup interval, you can enter \'7d\'. If you would have selected a backup every 6 hours, this would be converted to 28 days after pushing simulate, focusing on a new field or pushing enter',
+			'Examples: \'14d\' (14 days), \'5w\' (5weeks), \'2.5m\' (2.5 months), \'1q\' (1 quarter or 92 days) and \'1y\' (1 year)'
+		]);return false;"/></td>
+		</tr>
 		<tr><td>Change Rate</td><td colspan="2">
 			<!--<input class="alignwidth" type="text" id="idDelta" value="10" ></input>-->
 			<select id="idDelta" class="alignwidth">
