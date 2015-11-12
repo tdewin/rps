@@ -107,6 +107,9 @@ function scenario(name,style)
 	this.activeMonthlyInc = [0,0,0,0,0,0,0,0,0,0,0,0]
 	this.activeMonthlyRev = [0,0,0,0,0,0,0,0,0,0,0,0]
 	this.GFS = {"W":0,"M":0,"Q":0,"Y":0}
+	this.dataGrowth = 0
+	this.dataGrowthRate = 10
+	this.dataGrowthYear = 1
 	this.interval = "D"
 	this.hiddenOverrides = ""
 	this.getOverrides = function() {
@@ -167,19 +170,20 @@ function mapping(id,variable,applicable)
 	this.puremap = variable
 	this.applicable = applicable
 	this.urivar = 0
-	
+
+	this.guival = function() {
+		return $(this.id).val()
+	}
 	this.getURIVar = function()
 	{
 		var urivar = this.urivar
 		if(urivar != 0)
 		{
-			urivar = urivar+"="+$(this.id).val()
+			urivar = urivar+"="+this.guival()
 		}
 		return urivar
 	}
-	this.guival = function() {
-		return $(this.id).val()
-	}
+
 	this.copySwitch = 0
 	
 	this.convert = function() {
@@ -208,13 +212,13 @@ function mappings()
 	//default uri mappers
 	
 	//defining mappings
-	var setDefaultSelectInt = function() {
+	var setDefaultSelect = function() {
 		var scenario = mappingsLocal["scenario"].convert()
 		var value = scenario[this.variable]
 		var jqselect = this.id
 		
 		if ( $(jqselect+" option[value='"+value+"']").length == 0 ){
-			var urioption = new Option("Custom "+value+"%", value)
+			var urioption = new Option("Custom "+value+"", value)
 			urioption.setAttribute("selected","selected")
 			document.getElementById(jqselect.substring(1)).add(urioption);
 		}
@@ -223,6 +227,7 @@ function mappings()
 			$(jqselect+" option[value='"+value+"']").prop('selected',true);
 		}
 	}
+	var setDefaultSelectInt = setDefaultSelect
 	
 	
 	var mappingObj = new mapping("#scenariosSelect","scenario",-1)
@@ -333,16 +338,42 @@ function mappings()
 	
 	//DataGrowth Mappings
 	mappingObj = new mapping("#idDataGrowthRate","dataGrowthRate",0)
+	mappingObj.urivar = "dgr"
+	mappingObj.copySwitch = 1
 	mappingObj.convert = convertSelectInt
+	mappingObj.setDefault = setDefaultSelectInt
 	mappingsLocal[mappingObj.variable] = mappingObj	
 	
 	mappingObj = new mapping("#idDataGrowthYear","dataGrowthYear",0)
+	mappingObj.urivar = "dgy"
+	mappingObj.copySwitch = 1
 	mappingObj.convert = convertSelectFloat
+	mappingObj.setDefault = setDefaultSelect
 	mappingsLocal[mappingObj.variable] = mappingObj	
 	
 	mappingObj = new mapping("#idDataGrowth","dataGrowth",0)
 	mappingObj.convert = function() { return $(this.id).is(':checked') }
-	mappingsLocal[mappingObj.variable] = mappingObj	
+	mappingObj.urivar = "dg"
+	mappingObj.copySwitch = 1
+	mappingObj.guival = function() {
+		return ($(this.id).is(':checked')?1:0)
+	}
+	mappingObj.setDefault = function() {
+		var scenario = mappingsLocal["scenario"].convert()
+		var value = scenario[this.variable]
+		var jqselect = this.id
+		
+		if(value == 1)
+		{
+			$(jqselect).prop("checked",true)
+		}
+		else 
+		{
+			$(jqselect).prop("checked",false)
+		}
+	}
+	mappingsLocal[mappingObj.variable] = mappingObj
+		
 	
 	
 	var checkboxUncheck = function()
@@ -951,6 +982,7 @@ $( document ).ready(function() {
 	
 	var uriscenario = new scenario("URL Parameters",1)
 	var intfunction = function(intcheck,scenario) { var toReturn = parseInt(intcheck); if(isNaN(toReturn)) { toReturn = 1 };return toReturn }
+	var floatfunction = function(floatcheck,scenario) { var toReturn = parseFloat(floatcheck); if(isNaN(toReturn)) { toReturn = 1 };return toReturn }
 	
 	checkURIParameter(uriscenario,getmap,"s","size",intfunction)
 	checkURIParameter(uriscenario,getmap,"r","retention",intfunction)
@@ -992,6 +1024,11 @@ $( document ).ready(function() {
 	checkURIParameter(uriscenario,getmap,"im","activeMonthlyInc",function(arraystring,scenario) { return checkboxURIParameter(arraystring,12)})
 	checkURIParameter(uriscenario,getmap,"rw","activeWeeklyRev",function(arraystring,scenario) { return checkboxURIParameter(arraystring,7)})
 	checkURIParameter(uriscenario,getmap,"rm","activeMonthlyRev",function(arraystring,scenario) { return checkboxURIParameter(arraystring,12)})
+	checkURIParameter(uriscenario,getmap,"dg","dataGrowth",function(enablestring,scenario) {
+		var toReturn = parseInt(enablestring); if(isNaN(toReturn)) { toReturn = 0 };return toReturn
+	})
+	checkURIParameter(uriscenario,getmap,"dgy","dataGrowthYear",floatfunction)
+	checkURIParameter(uriscenario,getmap,"dgr","dataGrowthRate",intfunction)
 
 	
 	//legacy parameters
