@@ -73,7 +73,7 @@ function getSelScen()
 	var scenario = GUIStateVariables().scenarios[$("#scenariosSelect").val()]
 	return scenario
 }
-function saveStr()
+function getExportStr(manmode)
 {
 	var gsv = GUIStateVariables()
 	var uriarr = []
@@ -90,8 +90,19 @@ function saveStr()
 			uriarr.push(uriadd)
 		}
 	})
-	uriarr.push("e")
-	$("#idURLStr").val(uri+"?"+uriarr.join("&"))
+	
+	if(manmode === undefined || manmode == 0)
+	{
+		uriarr.push("e")
+	}
+	else {
+		uriarr.push("m")
+	}
+	return uri+"?"+uriarr.join("&")
+}
+function saveStr()
+{
+	$("#idURLStr").val(getExportStr())
 }
 function scenario(name,style)
 {
@@ -877,7 +888,7 @@ function simulate()
 	{
 		backupConfiguration.simpleYearGrowth = datagrowthrate
 	} else { backupConfiguration.simpleYearGrowth = 0 }
-	
+	var exporturl = getExportStr()
 	if(!showmehow)
 	{
 		gsv.backupConfiguration = backupConfiguration
@@ -911,8 +922,10 @@ function simulate()
 		gsv.backupConfiguration = backupConfiguration
 		
 		manualrunDirect(1,true)
+		exporturl = getExportStr(1)
 	}
 	
+	$("#idExportStr").val(exporturl)
 }
 
 function selectScenario(urlswitch)
@@ -1119,7 +1132,7 @@ $( document ).ready(function() {
 
 
 	toggleDataGrowth()
-	
+	toggleExport()
 });
 
 
@@ -1129,7 +1142,15 @@ $( document ).ready(function() {
 
 
 
-
+function toggleExport() {
+	var j=$('#idExportTR');
+	if($('#idShowExport').is(':checked')){
+		j.show()
+	} else{
+		j.hide()
+	};
+	return false;
+}
 
 function toggleDataGrowth()
 {
@@ -1281,10 +1302,7 @@ RPS heavily relies on some opensource <a href="#" onclick="showJS();return false
 
 <div>
 <h2>Quick Presets</h2>
-<table>
-		<tr><td colspan="2" ><select id="scenariosSelect" class="alignwidth"></select></td></tr>
-		<tr><td><input type="checkbox" id="idShowMeHowCheck" onchange="toggleDataGrowth()"/>Manual Run</td><td><input class="alignwidth" type="button" value="Simulate" onClick="simulate();return false;"></td></tr>
-</table>
+<select id="scenariosSelect" style="width:300px"></select>
 </div>
 <div id="idDivGeneral" class="">
 		<h2>Configuration</h2>
@@ -1620,6 +1638,23 @@ RPS heavily relies on some opensource <a href="#" onclick="showJS();return false
 			<tr><td>Yearly</td><td><input class="alignwidth" type="text" id="idGFSY" value="0"></input></td></tr>
 		</table>
 </div>
+<div id="idDivRun">
+<h2>Run</h2>
+<table>
+		<tr><td style="width:400px;">
+			<input type="checkbox" id="idShowMeHowCheck" onchange="toggleDataGrowth()"/>Manual Run
+			<input type="checkbox" id="idShowExport" onchange="return toggleExport()"/>Export
+		</td>
+		<td style="width:420px;text-align:right;">
+			<input  type="button" value="Simulate" style="width:150px;font-size:14px;background-color:green;color:white;border:1px solid black;" onClick="simulate();return false;">
+		</td>
+		</tr>
+		<tr id="idExportTR" style="display:none;">
+			<td colspan="2"><input id="idExportStr" onclick="$(this).select();return false;" class="alignwidth" placeholder="Hit simulate to export and refresh your settings here" ></input></td>
+		</tr>
+</table>
+</div>
+
 <div>
 <div id="idShowMeHowResult" class="hiddenBlock" >
 			<table id="idTableShowMeHow">
