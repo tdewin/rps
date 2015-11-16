@@ -625,8 +625,6 @@ function renderCanvas(backupResult)
 	jd.hide()
 	var c = document.getElementById("idRenderCanvas")
 	var igfs = document.getElementById("idimagegfs")
-	var imagearrowdown = document.getElementById("idimagearrowdown")
-	var imagearrowup = document.getElementById("idimagearrowup")
 	
 	var files = backupResult.getWorstCaseFiles()
 	
@@ -648,110 +646,88 @@ function renderCanvas(backupResult)
 	var margindoc = 10
 	var colsyn = ["#aed9a5","#bfe1b8"]
 	var colactive = ["#ff9955","#ffb380"]
-	var colgfs = ["#656565","#757575"]
-	var triangleLinkSize = 15
-	var totalsum = 54+25
+	var triangleLinkSize = 20
 
 	var charwidth = 12
-	var retentionspace = charwidth*prelogicvar.sretstring
+	var retentionspace = charwidth*prelogicvar.retstring
 	
 	ctx = c.getContext("2d");
 	ctx.clearRect(0, 0, c.width, c.height);
 	
-	c.width = margin*2+retentionspace+fullwidth+350
-	c.height = files.length*(fileheight+margin)+totalsum+margindoc*2
+	c.width = 800
+	c.height = files.length*(fileheight+margin)+margindoc
 	
-	var t = function(ctx,txt,x,y,color) {
+	var t = function(ctx,txt,x,y) {
 		var fs = 16
 		ctx.beginPath(); 
 		ctx.font = fs+"px Verdana";
 		ctx.fillStyle="#333333"
-		if(color !== undefined) {
-			ctx.fillStyle=color
-		}
-		
 		ctx.fillText(txt,x,y+fs);
 	}
 	
 	//thrust me, I'm an engineer it took hours calculating an arrow and rectangles, don't try to understand unless you really want to
-	var link = function(ctx,x,y,up) {
+	var link = function(ctx,x,y,size,up) {
+		var arrowsize = size/2
+		var arrowmod = 1
+		ctx.beginPath();
+		ctx.moveTo(x+arrowmod,y+arrowsize);
+		ctx.lineTo(x+arrowsize-arrowmod,y+arrowsize);
 		if(up) {
-			ctx.drawImage(imagearrowup,x,y);
+			ctx.lineTo(x+(arrowsize/2),y+arrowmod);
 		}
 		else {
-			ctx.drawImage(imagearrowdown,x,y+2);
+			ctx.lineTo(x+(arrowsize/2),y+(arrowsize*2)-arrowmod);
+		}
+		ctx.closePath();
+		ctx.fillStyle="#333333";
+		ctx.fill();
+		
+		
+		if(up) {
+			ctx.fillStyle="#333333";
+			ctx.fillRect(x+(arrowsize/2)-1,y+arrowsize,2,(arrowsize/2));
+			ctx.fillRect(x+(arrowsize/2)-1,y+(arrowsize*1.5),arrowsize*1.5,2);
+		}
+		else {
+			ctx.fillStyle="#333333";
+			
+			ctx.fillRect(x+(arrowsize/2)-1,y+(arrowsize/2),2,(arrowsize/2));
+			ctx.fillRect(x+(arrowsize/2)-1,y+(arrowsize/2)-2,arrowsize*1.5,2);
 		}
 	}	
 	
-	
+
 	$.each(files,function(i,f) {
 		var x = margindoc+retentionspace
 		var y = margindoc+(i*(fileheight+margin))
 		var width = (f.isVBK()?fullwidth:incwidth)
-		var color = ((f.type == "F")?colactive:((f.type == "G")?colgfs:colsyn))
+		var color = ((f.type == "F")?colactive:colsyn)
 
-		t(ctx,f.toSimpleRetentionString(),margindoc,y)
+		t(ctx,f.toRetentionString(),margindoc,y)
 		t(ctx,f.file,margindoc+retentionspace+fullwidth+10,y)
 		t(ctx,humanReadableFilesizeWithForce(f.getDataStats().f(),unifiedeval),margindoc+retentionspace+fullwidth+200,y)
 		
 		if(!f.isVBK()) {
-			link(ctx,x,y,(f.type == "I")?1:0)
-			x = x+triangleLinkSize
+			link(ctx,x,y,triangleLinkSize,(f.type == "I")?1:0)
+			x = x+triangleLinkSize+5
 		}
-		
+
 		ctx.beginPath(); 
 		ctx.fillStyle=color[0];	
 		ctx.fillRect(x,y,width,fileheight);
+		var tm = 2
+		ctx.beginPath();
+		ctx.moveTo(x+tm,y+tm);
+		ctx.lineTo(x+tm,y+fileheight-tm);
+		ctx.lineTo(x+fileheight,y+fileheight-tm);
+		ctx.closePath();
+		ctx.fillStyle=color[1];
+		ctx.fill();
 		
-		if (f.type == "G") {
-			 ctx.drawImage(igfs,x+5,y+3);
-		}
-		else {
-			var tm = 2
-			ctx.beginPath();
-			ctx.moveTo(x+tm,y+tm);
-			ctx.lineTo(x+tm,y+fileheight-tm);
-			ctx.lineTo(x+fileheight,y+fileheight-tm);
-			ctx.closePath();
-			ctx.fillStyle=color[1];
-			ctx.fill();
-		}
 		
 	})
-	var sumy = files.length*(fileheight+margin)+margindoc+4
-	var sumx = margindoc+retentionspace+fullwidth+200
-	
-	ctx.beginPath(); 
-	ctx.strokeStyle="#aaaaaa"
-	ctx.moveTo(margindoc,sumy-2);
-	ctx.lineTo(margindoc+retentionspace+fullwidth+300,sumy-2);
-	ctx.stroke()
-	
-	ctx.beginPath(); 
-	ctx.strokeStyle="#aaaaaa"
-	ctx.moveTo(margindoc,sumy+50);
-	ctx.lineTo(margindoc+retentionspace+fullwidth+300,sumy+50);
-	ctx.stroke()
-	
-	
-	t(ctx,"Total",margindoc,sumy)
-	t(ctx,"Working Space",margindoc,sumy+25,"#aa3333")
-	t(ctx,"Grand Total",margindoc,sumy+52)
-	
-	t(ctx,filesizeTotal,sumx,sumy)
-	t(ctx,workingSpace,sumx,sumy+25,"#aa3333")
-	t(ctx,"+",sumx-20,sumy+25,"#aa3333")
-	t(ctx,grandTotal,sumx,sumy+52)
-	
-	
-	
 	//cause IE sucks and this is how it works 
-	var datastream = (document.getElementById('idRenderCanvas').toDataURL('image/png'))
-	document.getElementById('idimgrender').src = datastream;
-	var ahref = document.getElementById('idahrefdownload')
-	ahref.href = datastream
-	ahref.download = "rpsout-"+moment().format("YYYYMMDDHHmmss")+".png"
-	
+	document.getElementById('idimgrender').src = (document.getElementById('idRenderCanvas').toDataURL('image/png'));
 	jd.show()
 	
 }
@@ -762,8 +738,7 @@ function prelogic(files) {
 		full:0,
 		gfs:0,
 		inc:0,
-		retstring:5,
-		sretstring:5
+		retstring:5
 	}
 	
 	$.each(files,function(key,val) {
@@ -782,11 +757,7 @@ function prelogic(files) {
 		{
 			p.retstring = teststr
 		}
-		teststr = val.toSimpleRetentionString().length
-		if( p.sretstring < teststr)
-		{
-			p.sretstring = teststr
-		}
+		
 	});
 	return p
 }
@@ -1873,10 +1844,7 @@ RPS heavily relies on some opensource <a href="#" onclick="showJS();return false
 </div>
 <div id="idDivResultCanvas" class="hiddenBlock">
 		<h2>Canvas</h2>
-		<img src="rpsimg/cgfs.png" id="idimagegfs" class="hiddenBlock"/>
-		<img src="rpsimg/arrowdown.png" id="idimagearrowdown" class="hiddenBlock"/>
-		<img src="rpsimg/arrowup.png" id="idimagearrowup" class="hiddenBlock"/>
-		<p><a href="" id="idahrefdownload" download="rpsimage.png" >Download PNG (FF/Chrome)</a></p>
+		<img src="rpsimg/dragme.png" id="idimagegfs" class="hiddenBlock"/>
 		<img id="idimgrender" src="rpsimg/nohtml5.png"/>
 		<canvas id="idRenderCanvas" class="hiddenBlock">
 		</canvas>

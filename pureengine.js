@@ -229,6 +229,29 @@ function VeeamBackupFileObjectInheritable(file,parent,type,dataStats,createDate,
 		}
 		return retString
 	}
+	VeeamBackupFileObj.simpleGFSStr = function(val,postfix)
+	{
+			if(val != 0 && val != -1)
+			{ 
+				return val+""+postfix+" "
+			}
+			return ""
+	}
+	VeeamBackupFileObj.toSimpleRetentionString = function () {
+		var keptFor = this.flagForKeepId
+		if(keptFor != 0) { keptFor = " ("+keptFor+")" }
+		else { keptFor = ""}
+	
+		var retString = ""+this.pointid+keptFor
+		
+		if(this.type == "G")
+		{
+			retString = this.simpleGFSStr(this.GFSPointids["W"],"W")+this.simpleGFSStr(this.GFSPointids["M"],"M")+this.simpleGFSStr(this.GFSPointids["Q"],"Q")+this.simpleGFSStr(this.GFSPointids["Y"],"Y")
+		}
+
+		return retString
+	}
+	
 	VeeamBackupFileObj.isnn = function () {
 		return 1
 	}
