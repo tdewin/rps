@@ -1059,6 +1059,23 @@ function simulate()
 	//var start = gsv.mappings["start"].convert()
 	var start = moment().add({days:1}).startOf('day').add({hours:22});
 	
+	//manual override
+	var ttconvert = function (val) {
+			var ret = 0
+			if (val != "0" && val != "") {
+				convert = moment(val)
+				if (convert.year() > 2000 && convert.year() < 2050) {
+					return convert
+				}
+			}
+			return ret
+	}
+	manStart = ttconvert($('#idManStart').val())
+	manStop = ttconvert($('#idManStop').val())
+	if (manStart!= 0) {
+		start = manStart
+	}
+	
 	
 	var datagrowthrate = gsv.mappings["dataGrowthRate"].convert()
 	var datagrowthyears = gsv.mappings["dataGrowthYear"].convert()
@@ -1085,21 +1102,7 @@ function simulate()
 			gsv.showWorstCase = false
 		}
 		
-		var ttconvert = function (val) {
-			var ret = 0
-			if (val != "0" && val != "") {
-				convert = moment(val)
-				if (convert.year() > 2000 && convert.year() < 2050) {
-					return convert
-				}
-			}
-			return ret
-		}
-		manStart = ttconvert($('#idManStart').val())
-		manStop = ttconvert($('#idManStop').val())
-		if (manStart!= 0) {
-			start = manStart
-		}
+		
 		
 		if(manStop != 0) {
 			end = manStop
