@@ -619,7 +619,7 @@ function humanReadableFilesizeWithForce(valueIn,e)
 	}
 	return filesize(valueIn, {base: 2,round: 2,forcesuffix:forcesuffix})
 }
-function renderCanvas(backupResult)
+function renderCanvas(backupResult,showWorstCase)
 {
 	var jd = $("#idDivResultCanvas")
 	jd.hide()
@@ -628,14 +628,23 @@ function renderCanvas(backupResult)
 	var imagearrowdown = document.getElementById("idimagearrowdown")
 	var imagearrowup = document.getElementById("idimagearrowup")
 	
+	
 	var files = backupResult.getWorstCaseFiles()
+	var filesizeTotalRaw =  backupResult.worstCaseSize
+	var workingSpaceRaw = backupResult.worstCaseDayWorkingSpace
+	var grandTotalRaw =  backupResult.worstCaseSizeWithWorkingSpace
+	
+	if(!showWorstCase) {
+		files = backupResult.getFiles()
+		filesizeTotalRaw =  backupResult.totalSize
+		workingSpaceRaw = backupResult.workingSpace
+		grandTotalRaw =  backupResult.totalSize+backupResult.workingSpace
+	}
 	
 	var prelogicvar = prelogic(files)
 	var unifiedeval = prelogicvar.unifiedeval
 	
-	var filesizeTotalRaw =  backupResult.worstCaseSize
-	var workingSpaceRaw = backupResult.worstCaseDayWorkingSpace
-	var grandTotalRaw =  backupResult.worstCaseSizeWithWorkingSpace
+
 	var filesizeTotal =  humanReadableFilesizeWithForce(filesizeTotalRaw,unifiedeval)
 	var workingSpace = humanReadableFilesizeWithForce(workingSpaceRaw,unifiedeval)
 	var grandTotal =  humanReadableFilesizeWithForce(grandTotalRaw,unifiedeval)
@@ -1060,20 +1069,50 @@ function simulate()
 		backupConfiguration.simpleYearGrowth = datagrowthrate
 	} else { backupConfiguration.simpleYearGrowth = 0 }
 	var exporturl = getExportStr()
+	
 	if(!showmehow)
 	{
 		gsv.backupConfiguration = backupConfiguration
 		gsv.backupResult = backupResult
+		gsv.showWorstCase = true
+
+	
+		var end = start.clone()
 		
 
-		
-		eval($("#idInput").val());
-		var end = start.clone().add(datagrowthyears,'years')
-		if(!datagrowthenabled)
-		{
-			end = gsv.pureEngine.predictEndDate(backupConfiguration,start.clone(),interval)
+		var showlatest = $('#idShowLatest').val()
+		if(showlatest == "1") {
+			gsv.showWorstCase = false
 		}
 		
+		var ttconvert = function (val) {
+			var ret = 0
+			if (val != "0" && val != "") {
+				convert = moment(val)
+				if (convert.year() > 2000) {
+					return convert
+				}
+			}
+			return ret
+		}
+		manStart = ttconvert($('#idManStart').val())
+		manStop = ttconvert($('#idManStop').val())
+		if (manStart!= 0) {
+			start = manStart
+		}
+		
+		if(manStop != 0) {
+			end = manStop
+		} else {
+			end = start.clone().add(datagrowthyears,'years')
+			if(!datagrowthenabled)
+			{
+				end = gsv.pureEngine.predictEndDate(backupConfiguration,start.clone(),interval)
+			}
+		} 
+		
+		//alert("Start :: "+start.format()+" End :: "+end.format())
+		eval($("#idInput").val());
 		gsv.pureEngine.debugln("engine start",1)
 		gsv.pureEngine.run(backupConfiguration,backupResult,start,interval,end)
 		gsv.pureEngine.debugln("engine ended",1)
@@ -1081,11 +1120,11 @@ function simulate()
 		renderText(backupResult)
 		if(canvasrendering)
 		{
-			renderCanvas(backupResult)
+			renderCanvas(backupResult,gsv.showWorstCase)
 		}
 		else
 		{
-			renderGFX(backupResult,true)
+			renderGFX(backupResult,gsv.showWorstCase)
 		}
 		
 
@@ -1266,6 +1305,15 @@ $( document ).ready(function() {
 	})
 	if("dev" in getmap)
 	{
+		$('#idDivDev').show();
+	}
+	if("reversesim" in getmap) {
+		var m = moment().hour(8).minute(0).second(0);
+		var stop = m.format("YYYY-MM-DD HH:mm:ss");
+		var start = m.subtract(3, 'years').hour(20).format("YYYY-MM-DD HH:mm:ss");
+		$('#idManStart').val(start)
+		$('#idManStop').val(stop)
+		$('#idShowLatest').val(1)
 		$('#idDivDev').show();
 	}
 	if("devline" in getmap)
@@ -1477,6 +1525,11 @@ function rpcheck(jobject,defaultval) {
 <textarea id="idInput" rows="10" cols="150" ></textarea><br>
 <textarea id="idConsole" rows="10" cols="150" ></textarea><br>
 <input type="button" value="URL >>" onclick="saveStr()" ><input id="idURLStr" size="100"></input><br>
+<table>
+<tr><td>Start</td><td><input id="idManStart" value=""/></td></tr>
+<tr><td>Stop</td><td><input id="idManStop" value="" /></td></tr>
+<tr><td>Show Latest</td><td><input id="idShowLatest" value="0" /></td></tr>
+</table>
 </div>
 <div id="idreferences">
 <h1>The Restore Point Simulator</h1>

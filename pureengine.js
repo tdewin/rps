@@ -454,7 +454,10 @@ function VeeamBackupConfigurationObject(style,simplePoints,sourceSize)
 	//if you set the day of month, it will get priority
 	VeeamBackupConfigurationObj.GFSYearlyDayOfMonth = 0
 	VeeamBackupConfigurationObj.GFSYearlyMonth = 1
-		
+	
+
+
+	
 	return VeeamBackupConfigurationObj
 }
 function VeeamBackupLastActionObject(type,text)
@@ -475,6 +478,7 @@ function VeeamBackupResultObject()
 	VeeamBackupResultObj.GFS = []
 	VeeamBackupResultObj.garbage = []
 	VeeamBackupResultObj.workingSpace = 0
+	VeeamBackupResultObj.totalSize = 0
 	
 	//don't rely on this value unless you execute a recalcpointid
 	VeeamBackupResultObj.newestFull = -1
@@ -489,6 +493,7 @@ function VeeamBackupResultObject()
 	VeeamBackupResultObj.worstCaseDayGFS = []
 
 	
+
 	
 	VeeamBackupResultObj.lastActions = []
 	VeeamBackupResultObj.lastActionDate = 0
@@ -541,22 +546,7 @@ function VeeamBackupResultObject()
 	}	
 	VeeamBackupResultObj.getTotalSize = function()
 	{
-		var ret = this.retention
-		var gfs = this.GFS
-		
-		var totalSize = 0
-		for(var counter=0;counter < ret.length;counter = counter +1 )
-		{
-			var point = ret[counter]
-			totalSize += point.getDataStats().f()
-		}
-		for(var counter=0;counter < gfs.length;counter = counter +1 )
-		{
-			var point = gfs[counter]
-			totalSize += point.getDataStats().f()
-		}
-		
-		return totalSize
+		return this.totalSize
 	}
 	VeeamBackupResultObj.getWorkSpace = function()
 	{
@@ -1311,6 +1301,9 @@ function VeeamPureEngine()
 			totalSize += point.getDataStats().f()
 		}
 		totalSizeWW = totalSize + workingSpace
+		backupResult.totalSize = totalSize
+		backupResult.workingSpace = workingSpace
+		
 		
 		if(backupResult.worstCaseSizeWithWorkingSpace < totalSizeWW)
 		{
@@ -1498,8 +1491,8 @@ function VeeamPureEngine()
 	
 	PureEngineObj.run = function(backupConfiguration,backupResult,exectime,steptime,halttime)
 	{
-		this.debugln(exectime.format("YY DDD"),1)
-		this.debugln(halttime.format("YY DDD"),1)
+		this.debugln(exectime.format("YYYY MM DDD"),1)
+		this.debugln(halttime.format("YYYY MM DDD"),1)
 		
 		//set start date if it 0
 		if(backupConfiguration.startDate == 0)
@@ -1510,7 +1503,6 @@ function VeeamPureEngine()
 		
 		if($.inArray(backupConfiguration.style,[1,2,3]) != -1)
 		{
-			backupResult.workingSpace = this.workingSpaceBucketCalculation(backupConfiguration,backupResult,exectime)
 			
 			//for every style, if there is no newest point, we create full vbk
 			if(backupResult.retention.length == 0)
@@ -1526,7 +1518,7 @@ function VeeamPureEngine()
 				backupResult.addLastAction(VeeamBackupLastActionObject(0,"Created VBK / SEQ 1x I/O Write / 1x "+ this.humanReadableFilesize(fullbackup.getDataStats().f())))
 				
 				exectime = exectime.add(steptime)
-				
+				this.worstCase(backupConfiguration,backupResult,exectime.clone())
 				
 			}
 			
@@ -1613,8 +1605,6 @@ function VeeamPureEngine()
 					//worst case verification
 					this.worstCase(backupConfiguration,backupResult,exectime.clone())
 					
-					//work space update
-					backupResult.workingSpace = this.workingSpaceBucketCalculation(backupConfiguration,backupResult,exectime)
 				}
 
 				
@@ -1667,9 +1657,6 @@ function VeeamPureEngine()
 					
 					//worst case verification
 					this.worstCase(backupConfiguration,backupResult,exectime.clone())
-					
-					//work space update
-					backupResult.workingSpace = this.workingSpaceBucketCalculation(backupConfiguration,backupResult,exectime)
 				}
 			}
 			else
@@ -1715,8 +1702,6 @@ function VeeamPureEngine()
 						//worst case verification
 						this.worstCase(backupConfiguration,backupResult,exectime.clone())
 						
-						//work space update
-						backupResult.workingSpace = this.workingSpaceBucketCalculation(backupConfiguration,backupResult,exectime)
 						
 				}
 			}
