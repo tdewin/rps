@@ -1089,7 +1089,7 @@ function simulate()
 			var ret = 0
 			if (val != "0" && val != "") {
 				convert = moment(val)
-				if (convert.year() > 2000) {
+				if (convert.year() > 2000 && convert.year() < 2050) {
 					return convert
 				}
 			}
