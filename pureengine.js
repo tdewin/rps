@@ -667,12 +667,30 @@ function VeeamPureEngine()
 	/*
 		new algorithm for v9 active full backup
 	*/
-	PureEngineObj.getGFSMarkers = function(backupConfiguration,exectime,xdate,ydate) {
+	PureEngineObj.getGFSMarkers = function(backupConfiguration,xdate,ydate) {
 		var pureEngine = this
 		var xdate = xdate.clone()
 		var ydate = ydate.clone()
 		
-		var markers = []
+		var markers = new Object();
+		markers.w = 0
+		markers.m = 0
+		markers.q = 0
+		markers.y = 0
+		markers.touched = 0
+		markers.testmark = function(gfsmoment,marker,predate,postdate) {
+				if (predate > postdate) {
+						var t = postdate 
+						postdate = predate
+						predate = t
+				}
+				
+				if (predate < gfsmoment && gfsmoment <= postdate) {
+						this[marker] = 1
+						this["touched"] = 1
+						this[marker+"gfs"] = gfsmoment.clone()
+				}
+		}
 		
 		 
 		
@@ -681,7 +699,8 @@ function VeeamPureEngine()
 			//VeeamBackupConfigurationObj.GFSWeeklyDay = 6
 			//VeeamBackupConfigurationObj.GFSWeeklyHour = 22
 			
-			var gfsp = xdate.clone().substract(1,'days')
+			var gfsp = xdate.clone()
+			gfsp.subtract(1,'days')
 			gfsp.hour(backupConfiguration.GFSWeeklyHour).minute(0).second(0)
 			
 			//rollback to previous GFS point
@@ -692,7 +711,7 @@ function VeeamPureEngine()
 			//skipping forward until we get to today GFS point
 			while(gfsp <= ydate)
 			{
-				this.highLowMark(weeklyPoint,"W",xpoint,ypoint)
+				markers.testmark(gfsp,"w",xdate.clone(),ydate.clone())
 				gfsp.add(1,'weeks')
 			}
 			
@@ -706,7 +725,34 @@ function VeeamPureEngine()
 			//VeeamBackupConfigurationObj.GFSMonthlyDayOfMonth = 0
 			
 			if (backupConfiguration.GFSMonthlyDayOfMonth > 0) {
-				
+				if(backupConfiguration.GFSMonthlyDayOfMonth > 27)
+				{
+					var gfsp = ydate.clone()
+					gfsp.add(1,'months').endOf('month')
+					
+					while(gfsp >= xdate)
+					{
+						if(gfsp.date() > backupConfiguration.GFSMonthlyDayOfMonth) { gfsp.date(backupConfiguration.GFSMonthlyDayOfMonth) }
+						gfsp.hour(backupConfiguration.GFSWeeklyHour).minute(0).second(0).millisecond(0);
+						
+						markers.testmark(gfsp,"m",xdate.clone(),ydate.clone())
+						
+						gfsp.subtract(1,'months').endOf('month')
+					}
+				}
+				else 
+				{
+					var gfsp = xdate.clone().subtract(1,'months').startOf('month')
+					while(gfsp <= ydate)
+					{
+						gfsp.hour(backupConfiguration.GFSWeeklyHour).minute(0).second(0).millisecond(0);
+						gfsp.date(backupConfiguration.GFSMonthlyDayOfMonth) 
+						
+						markers.testmark(gfsp,"m",xdate.clone(),ydate.clone())
+
+						gfsp.add(1,'months').startOf('month')
+					}
+				}
 			} else {
 				
 			}
@@ -769,7 +815,7 @@ function VeeamPureEngine()
 
 	*/
 
-	
+
 	PureEngineObj.markforGFS = function(backupConfiguration,exectime,xpoint,ypoint)
 	{
 		var pureEngine = this
@@ -808,7 +854,7 @@ function VeeamPureEngine()
 					while(mPoint > xdate)
 					{
 						if(mPoint.date() > backupConfiguration.GFSMonthlyDayOfMonth) { mPoint.date(backupConfiguration.GFSMonthlyDayOfMonth) }
-						mPoint.hour(backupConfiguration.GFSWeeklyHour).minute(0).second(0);
+						mPoint.hour(backupConfiguration.GFSWeeklyHour).minute(0).second(0).millisecond(0);
 						
 						this.highLowMark(mPoint,"M",xpoint,ypoint)
 					
@@ -820,7 +866,7 @@ function VeeamPureEngine()
 					var mPoint = xdate.clone().subtract(1,'months').startOf('month')
 					while(mPoint <= ydate)
 					{
-						mPoint.hour(backupConfiguration.GFSWeeklyHour).minute(0).second(0);
+						mPoint.hour(backupConfiguration.GFSWeeklyHour).minute(0).second(0).millisecond(0);
 						mPoint.date(backupConfiguration.GFSMonthlyDayOfMonth) 
 						this.highLowMark(mPoint,"M",xpoint,ypoint)
 
@@ -833,7 +879,7 @@ function VeeamPureEngine()
 				var mPoint = ydate.clone().add(1,'months').endOf('month')
 				while(mPoint > xdate)
 				{
-					mPoint.hour(backupConfiguration.GFSWeeklyHour).minute(0).second(0);
+					mPoint.hour(backupConfiguration.GFSWeeklyHour).minute(0).second(0).millisecond(0);
 					while(mPoint.day() != this.sunday0(backupConfiguration.GFSMonthlyDay))
 					{
 						mPoint.subtract(1,'days')
@@ -848,7 +894,7 @@ function VeeamPureEngine()
 				var mPoint = xdate.clone().subtract(1,'months').startOf('month')
 				while(mPoint <= ydate)
 				{
-					mPoint.hour(backupConfiguration.GFSWeeklyHour).minute(0).second(0);
+					mPoint.hour(backupConfiguration.GFSWeeklyHour).minute(0).second(0).millisecond(0);
 					while(mPoint.day() != this.sunday0(backupConfiguration.GFSMonthlyDay))
 					{
 						mPoint.add(1,'days')
@@ -881,7 +927,7 @@ function VeeamPureEngine()
 					{
 						if(backupConfiguration.GFSQuarterlyMonth == 1) { qPoint.subtract(2,'months').endOf('month') }
 						if(qPoint.date() > backupConfiguration.GFSQuarterlyDayOfMonth) { qPoint.date(backupConfiguration.GFSQuarterlyDayOfMonth) }
-						qPoint.hour(backupConfiguration.GFSWeeklyHour).minute(0).second(0);
+						qPoint.hour(backupConfiguration.GFSWeeklyHour).minute(0).second(0).millisecond(0);
 						
 						this.highLowMark(qPoint,"Q",xpoint,ypoint)
 					
@@ -895,7 +941,7 @@ function VeeamPureEngine()
 					{
 						if(backupConfiguration.GFSQuarterlyMonth == 2) { qPoint.add(2,'months').startOf('month') }
 						
-						qPoint.hour(backupConfiguration.GFSWeeklyHour).minute(0).second(0);
+						qPoint.hour(backupConfiguration.GFSWeeklyHour).minute(0).second(0).millisecond(0);
 						qPoint.date(backupConfiguration.GFSQuarterlyDayOfMonth) 
 						this.highLowMark(qPoint,"Q",xpoint,ypoint)
 
@@ -908,7 +954,7 @@ function VeeamPureEngine()
 				var qPoint = ydate.clone().add(1,'quarters').endOf('quarter')
 				while(qPoint > xdate)
 				{
-					qPoint.hour(backupConfiguration.GFSWeeklyHour).minute(0).second(0);
+					qPoint.hour(backupConfiguration.GFSWeeklyHour).minute(0).second(0).millisecond(0);
 					while(qPoint.day() != this.sunday0(backupConfiguration.GFSQuarterlyDay))
 					{
 						qPoint.subtract(1,'days')
@@ -923,7 +969,7 @@ function VeeamPureEngine()
 				var qPoint = xdate.clone().subtract(1,'quarters').startOf('quarter')
 				while(qPoint <= ydate)
 				{
-					qPoint.hour(backupConfiguration.GFSWeeklyHour).minute(0).second(0);
+					qPoint.hour(backupConfiguration.GFSWeeklyHour).minute(0).second(0).millisecond(0);
 					while(qPoint.day() != this.sunday0(backupConfiguration.GFSQuarterlyDay))
 					{
 						qPoint.add(1,'days')
@@ -956,7 +1002,7 @@ function VeeamPureEngine()
 					{
 						yPoint.month(backupConfiguration.GFSYearlyMonth-1).endOf('month')
 						if(yPoint.date() > backupConfiguration.GFSYearlyDayOfMonth) { yPoint.date(backupConfiguration.GFSYearlyDayOfMonth) }
-						yPoint.hour(backupConfiguration.GFSWeeklyHour).minute(0).second(0);
+						yPoint.hour(backupConfiguration.GFSWeeklyHour).minute(0).second(0).millisecond(0);
 						
 						this.highLowMark(yPoint,"Y",xpoint,ypoint)
 					
@@ -971,7 +1017,7 @@ function VeeamPureEngine()
 					{
 						yPoint.month(backupConfiguration.GFSYearlyMonth-1).startOf('month')
 						yPoint.date(backupConfiguration.GFSYearlyDayOfMonth) 
-						yPoint.hour(backupConfiguration.GFSWeeklyHour).minute(0).second(0);
+						yPoint.hour(backupConfiguration.GFSWeeklyHour).minute(0).second(0).millisecond(0);
 						
 						this.highLowMark(yPoint,"Y",xpoint,ypoint)
 
@@ -984,7 +1030,7 @@ function VeeamPureEngine()
 				var yPoint = ydate.clone().add(1,'years').endOf('year')
 				while(yPoint > xdate)
 				{
-					yPoint.hour(backupConfiguration.GFSWeeklyHour).minute(0).second(0);
+					yPoint.hour(backupConfiguration.GFSWeeklyHour).minute(0).second(0).millisecond(0);
 					while(yPoint.day() != this.sunday0(backupConfiguration.GFSYearlyDay))
 					{
 						yPoint.subtract(1,'days')
@@ -999,7 +1045,7 @@ function VeeamPureEngine()
 				var yPoint= xdate.clone().subtract(1,'years').startOf('year')
 				while(yPoint<= ydate)
 				{
-					yPoint.hour(backupConfiguration.GFSWeeklyHour).minute(0).second(0);
+					yPoint.hour(backupConfiguration.GFSWeeklyHour).minute(0).second(0).millisecond(0);
 					while(yPoint.day() != this.sunday0(backupConfiguration.GFSYearlyDay))
 					{
 						yPoint.add(1,'days')
