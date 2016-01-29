@@ -865,6 +865,7 @@ function renderGFX(backupResult,showWorstCase)
 	table.td("Modify Date").attr("class","widthdate")
 	table.td("Point Date").attr("class","widthdate")
 	
+	var showrealname = ($("#idShowRealName").val() == "1")
 	for(var counter=0;counter < files.length;counter = counter + 1 )
 	{
 		var file = files[counter]
@@ -907,7 +908,12 @@ function renderGFX(backupResult,showWorstCase)
 			}
 		}
 		var hrfsize = humanReadableFilesizeWithForce(file.getDataStats().f(),unifiedeval)
-		table.td(file.file).a(hrfsize).attr("onClick","showVisualData(["+file.getDataStats().sd()+","+file.getDataStats().f()+"]);return false;").td(file.modifyDate.format("YYYY-MM-DD dd HH")).td(file.pointDate.format("YYYY-MM-DD dd HH"))		
+		
+		var fname = file.file
+		if(showrealname) {
+			fname = file.realFileNameStr()
+		}
+		table.td(fname).a(hrfsize).attr("onClick","showVisualData(["+file.getDataStats().sd()+","+file.getDataStats().f()+"]);return false;").td(file.modifyDate.format("YYYY-MM-DD dd HH")).td(file.pointDate.format("YYYY-MM-DD dd HH"))		
 	}
 	table.tr().td("").td("").td("").td(filesizeTotal).attr("class","totalTopLine").td("").td("")
 	table.tr().td("").td("").td("Work Space").attr("class","alert").td("+"+workingSpace).attr("class","alert").td("").td("")
@@ -1532,6 +1538,7 @@ function rpcheck(jobject,defaultval) {
 <tr><td>Start</td><td><input id="idManStart" value=""/></td></tr>
 <tr><td>Stop</td><td><input id="idManStop" value="" /></td></tr>
 <tr><td>Show Latest</td><td><input id="idShowLatest" value="0" /></td></tr>
+<tr><td>Show RealName</td><td><input id="idShowRealName" value="0" /></td></tr>
 </table>
 </div>
 <div id="idreferences">

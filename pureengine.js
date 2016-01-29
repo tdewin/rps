@@ -179,6 +179,15 @@ function VeeamBackupFileObjectInheritable(file,parent,type,dataStats,createDate,
 		return cloneObj
 	}
 
+	VeeamBackupFileObj.realFileNameStr = function () {
+		var ext = "vbk"
+		if (this.type == "I") { 
+			ext = "vib" 
+		} else if (this.type == "R") { 
+			ext = "vrb" 
+		}
+		return this.pointDate.format("YYYY-MM-DDTHHmmss")+"."+ext
+	}
 	
 	VeeamBackupFileObj.fullfile = function () {
 		return this.pointDate.format("dd YY-MM-DD HH ")+"h "+this.file//+"-"+this.suid
@@ -430,7 +439,11 @@ function VeeamBackupConfigurationObject(style,simplePoints,sourceSize)
 	
 	//only valid for style 3
 	VeeamBackupConfigurationObj.GFS = {"W":0,"M":0,"Q":0,"Y":0}
-		
+	
+	//v9 active full
+	VeeamBackupConfigurationObj.ActiveFull = 0
+
+	
 	//weekly defaults
 	VeeamBackupConfigurationObj.GFSWeeklyDay = 6
 	VeeamBackupConfigurationObj.GFSWeeklyHour = 22
@@ -650,6 +663,89 @@ function VeeamPureEngine()
 			}
 		}
 	}
+	
+	/*
+		new algorithm for v9 active full backup
+	*/
+	PureEngineObj.getGFSMarkers = function(backupConfiguration,exectime,xdate,ydate) {
+		var pureEngine = this
+		var xdate = xdate.clone()
+		var ydate = ydate.clone()
+		
+		var markers = []
+		
+		 
+		
+		if(backupConfiguration.GFS["W"] > 0) {
+			//weekly defaults
+			//VeeamBackupConfigurationObj.GFSWeeklyDay = 6
+			//VeeamBackupConfigurationObj.GFSWeeklyHour = 22
+			
+			var gfsp = xdate.clone().substract(1,'days')
+			gfsp.hour(backupConfiguration.GFSWeeklyHour).minute(0).second(0)
+			
+			//rollback to previous GFS point
+			while(gfsp.day() != this.sunday0(backupConfiguration.GFSWeeklyDay))
+			{
+				gfsp.subtract(1,'days')
+			}
+			//skipping forward until we get to today GFS point
+			while(gfsp <= ydate)
+			{
+				this.highLowMark(weeklyPoint,"W",xpoint,ypoint)
+				gfsp.add(1,'weeks')
+			}
+			
+			
+		} 
+		if(backupConfiguration.GFS["M"] > 0) {
+			//monthly defaults
+			//VeeamBackupConfigurationObj.GFSMonthlyDay = 6
+			//VeeamBackupConfigurationObj.GFSMonthlyMonthWeek = 1
+			//if you set the day of month, it will get priority, set to 32 for last day
+			//VeeamBackupConfigurationObj.GFSMonthlyDayOfMonth = 0
+			
+			if (backupConfiguration.GFSMonthlyDayOfMonth > 0) {
+				
+			} else {
+				
+			}
+		}
+		if(backupConfiguration.GFS["Q"] > 0) {
+			//Q defaults
+			//VeeamBackupConfigurationObj.GFSQuarterlyDay = 6
+			//VeeamBackupConfigurationObj.GFSQuarterlyQuarterWeek = 1
+			
+			//if you set the day of month, it will get priority
+			//VeeamBackupConfigurationObj.GFSQuarterlyDayOfMonth = 0
+			//VeeamBackupConfigurationObj.GFSQuarterlyMonth = 1 //1 first, 2 last
+			
+			if(backupConfiguration.GFSQuarterlyDayOfMonth > 0) {
+				
+			} else {
+				
+			}
+			
+		}
+		if(backupConfiguration.GFS["Y"] > 0) {
+			//y defaults
+			//VeeamBackupConfigurationObj.GFSYearlyDay = 6
+			//VeeamBackupConfigurationObj.GFSYearlyDayWeek = 1
+			//if you set the day of month, it will get priority
+			//VeeamBackupConfigurationObj.GFSYearlyDayOfMonth = 0
+			//VeeamBackupConfigurationObj.GFSYearlyMonth = 1
+			
+			if(backupConfiguration.GFSYearlyDayOfMonth > 0) {
+				
+			} else {
+				
+			}
+			
+		}
+		
+		return markers
+	}
+	
 	
 	/*
 	MarkforGFS
