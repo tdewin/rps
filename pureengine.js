@@ -665,7 +665,8 @@ function VeeamPureEngine()
 	}
 	
 	/*
-		new algorithm for v9 active full backup
+		new algorithm for v9 active full backup on backup copy job
+		gfs does not need to mark inc but full creation must be  decided on the moment of executing
 	*/
 	PureEngineObj.getGFSMarkers = function(backupConfiguration,xdate,ydate) {
 		var pureEngine = this
@@ -725,6 +726,7 @@ function VeeamPureEngine()
 			//VeeamBackupConfigurationObj.GFSMonthlyDayOfMonth = 0
 			
 			if (backupConfiguration.GFSMonthlyDayOfMonth > 0) {
+				//skip forward and clam to the end of the month
 				if(backupConfiguration.GFSMonthlyDayOfMonth > 27)
 				{
 					var gfsp = ydate.clone()
@@ -754,7 +756,34 @@ function VeeamPureEngine()
 					}
 				}
 			} else {
-				
+				if (backupConfiguration.GFSMonthlyMonthWeek == 5) {
+					var gfsp = ydate.clone()
+					gfsp.add(1,'months').endOf('month');
+					while (gfsp >= xdate) {
+						while(gfsp.day() != this.sunday0(backupConfiguration.GFSMonthlyDay)) {
+							gfsp.subtract(1,'day')	
+						}
+						gfsp.hour(backupConfiguration.GFSWeeklyHour).minute(0).second(0).millisecond(0);
+						markers.testmark(gfsp,"m",xdate.clone(),ydate.clone())
+
+						gfsp.subtract(1,'months').endOf('month');
+					}
+				} else {
+					var gfsp = xdate.clone()
+					gfsp.subtract(1,'months').startOf('month');
+					while (gfsp <= ydate) {
+						//1st matching day
+						while(gfsp.day() != this.sunday0(backupConfiguration.GFSMonthlyDay)) {
+							gfsp.add(1,'day')	
+						}
+						
+						gfsp.add((backupConfiguration.GFSMonthlyMonthWeek-1),'weeks')
+						gfsp.hour(backupConfiguration.GFSWeeklyHour).minute(0).second(0).millisecond(0);
+						
+						markers.testmark(gfsp,"m",xdate.clone(),ydate.clone())
+						gfsp.add(1,'months').startOf('month');
+					}
+				}
 			}
 		}
 		if(backupConfiguration.GFS["Q"] > 0) {
@@ -767,9 +796,67 @@ function VeeamPureEngine()
 			//VeeamBackupConfigurationObj.GFSQuarterlyMonth = 1 //1 first, 2 last
 			
 			if(backupConfiguration.GFSQuarterlyDayOfMonth > 0) {
+				if (backupConfiguration.GFSQuarterlyDayOfMonth > 27) {
+					var gfsp = ydate.clone()
+					gfsp.add(1,'quarters').endOf('quarters')
+					
+					while(gfsp >= xdate)
+					{
+						if(backupConfiguration.GFSQuarterlyMonth == 1) { gfsp.subtract(7,'days').subtract(2,'months').endOf('month') }
+						
+						if(gfsp.date() > backupConfiguration.GFSQuarterlyDayOfMonth) { gfsp.date(backupConfiguration.GFSQuarterlyDayOfMonth) }
+						gfsp.hour(backupConfiguration.GFSWeeklyHour).minute(0).second(0).millisecond(0);
+						
+						markers.testmark(gfsp,"q",xdate.clone(),ydate.clone())
+						
+						gfsp.subtract(1,'quarters').endOf('quarter')
+					}				
+				} else {
+					var gfsp = xdate.clone().subtract(1,'quarters').startOf('quarter')
+					
+					while(gfsp <= ydate)
+					{
+						if(backupConfiguration.GFSQuarterlyMonth == 2) { gfsp.add(7,'days').add(2,'months').startOf('month') }
+						gfsp.hour(backupConfiguration.GFSWeeklyHour).minute(0).second(0).millisecond(0);
+						gfsp.date(backupConfiguration.GFSQuarterlyDayOfMonth) 
+						
+						markers.testmark(gfsp,"q",xdate.clone(),ydate.clone())
 				
+						gfsp.add(1,'quarters').startOf('quarter')
+						
+					}
+				}
 			} else {
-				
+				if (backupConfiguration.GFSQuarterlyQuarterWeek == 5) {
+					var gfsp = ydate.clone()
+					gfsp.add(1,'quarters').endOf('quarter');
+					while (gfsp >= xdate) {
+						while(gfsp.day() != this.sunday0(backupConfiguration.GFSQuarterlyDay)) {
+							gfsp.subtract(1,'day')	
+						}
+						gfsp.hour(backupConfiguration.GFSWeeklyHour).minute(0).second(0).millisecond(0);
+						markers.testmark(gfsp,"q",xdate.clone(),ydate.clone())
+
+						gfsp.subtract(1,'quarters').endOf('quarter');
+					}
+				} else {
+					var gfsp = xdate.clone()
+					gfsp.subtract(1,'quarter').startOf('quarter');
+					while (gfsp <= ydate) {
+						//1st matching day
+						while(gfsp.day() != this.sunday0(backupConfiguration.GFSQuarterlyDay)) {
+							gfsp.add(1,'day')	
+						}
+						
+						gfsp.add((backupConfiguration.GFSQuarterlyQuarterWeek-1),'weeks')
+						
+						gfsp.hour(backupConfiguration.GFSWeeklyHour).minute(0).second(0).millisecond(0);
+						
+						markers.testmark(gfsp,"q",xdate.clone(),ydate.clone())
+						
+						gfsp.add(1,'quarters').startOf('quarter');
+					}
+				}
 			}
 			
 		}
@@ -782,9 +869,66 @@ function VeeamPureEngine()
 			//VeeamBackupConfigurationObj.GFSYearlyMonth = 1
 			
 			if(backupConfiguration.GFSYearlyDayOfMonth > 0) {
+				if (backupConfiguration.GFSYearlyDayOfMonth > 27) {
+					var gfsp = ydate.clone()
+					gfsp.add(1,'years').endOf('year')
+					
+					while(gfsp >= xdate)
+					{
+						gfsp.month(backupConfiguration.GFSYearlyMonth-1).endOf('month')
+						if(gfsp.date() > backupConfiguration.GFSYearlyDayOfMonth) { gfsp.date(backupConfiguration.GFSYearlyDayOfMonth) }
+						gfsp.hour(backupConfiguration.GFSWeeklyHour).minute(0).second(0).millisecond(0);
+						
+						markers.testmark(gfsp,"y",xdate.clone(),ydate.clone())
+						
+						gfsp.subtract(1,'years').endOf('year')
+					}				
+				} else {
+					var gfsp = xdate.clone().subtract(1,'year').startOf('year')
+					
+					while(gfsp <= ydate)
+					{
+						gfsp.month(backupConfiguration.GFSYearlyMonth-1).startOf('month')
+						gfsp.date(backupConfiguration.GFSYearlyDayOfMonth) 
+						gfsp.hour(backupConfiguration.GFSWeeklyHour).minute(0).second(0).millisecond(0);
+						
+						markers.testmark(gfsp,"y",xdate.clone(),ydate.clone())
 				
+						gfsp.add(1,'years').startOf('year')
+						
+					}
+				}				
 			} else {
-				
+				if (backupConfiguration.GFSYearlyDayWeek == 5) {
+					var gfsp = ydate.clone()
+					gfsp.add(1,'year').endOf('year');
+					while (gfsp >= xdate) {
+						while(gfsp.day() != this.sunday0(backupConfiguration.GFSYearlyDay)) {
+							gfsp.subtract(1,'day')	
+						}
+						gfsp.hour(backupConfiguration.GFSWeeklyHour).minute(0).second(0).millisecond(0);
+						markers.testmark(gfsp,"y",xdate.clone(),ydate.clone())
+
+						gfsp.subtract(1,'years').endOf('year');
+					}
+				} else {
+					var gfsp = xdate.clone()
+					gfsp.subtract(1,'years').startOf('year');
+					while (gfsp <= ydate) {
+						//1st matching day
+						while(gfsp.day() != this.sunday0(backupConfiguration.GFSYearlyDay)) {
+							gfsp.add(1,'day')	
+						}
+						
+						gfsp.add((backupConfiguration.GFSYearlyDayWeek-1),'weeks')
+						
+						gfsp.hour(backupConfiguration.GFSWeeklyHour).minute(0).second(0).millisecond(0);
+						
+						markers.testmark(gfsp,"y",xdate.clone(),ydate.clone())
+						
+						gfsp.add(1,'years').startOf('year');
+					}
+				}	
 			}
 			
 		}

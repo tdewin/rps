@@ -34,7 +34,7 @@ function runtest(start,end,backupConfiguration) {
 					builder += "\t                "
 				}
 			})
-			logc(previous.format("dddd YYYY-MM-DDTHHmmss \t")+"  -  "+current.format("dddd YYYY-MM-DDTHHmmss \t"),"green")
+			logc(previous.format("dddd YYYY-MM-DDTHHmmss \t")+"  -  !! Current :::"+current.format("dddd YYYY-MM-DDTHHmmss \t"),"green")
 			logc(builder)
 			console.log("\n")
 			console.log("\n")
@@ -45,12 +45,27 @@ function runtest(start,end,backupConfiguration) {
 	console.log("\n")
 }
 
-var start = moment("2012-12-15 23:00:00")
-var end = moment("2015-02-01 23:00:00")
+var start = moment("2012-12-15 22:00:00")
+var end = moment("2016-02-15 22:00:00")
 
 
 var backupConfiguration = pureEngine.VeeamBackupConfigurationObject(3,14,1000);
-backupConfiguration.GFS = {"W":6,"M":4,"Q":5,"Y":5}
-backupConfiguration.GFSMonthlyDayOfMonth = 15
+backupConfiguration.GFS = {"W":0,"M":4,"Q":5,"Y":5}
+backupConfiguration.GFSWeeklyDay = 6
+
+//backupConfiguration.GFSMonthlyDayOfMonth = 15
+backupConfiguration.GFSMonthlyDay = 6
+backupConfiguration.GFSMonthlyMonthWeek = 1
+
+//backupConfiguration.GFSQuarterlyDayOfMonth = 31
+//backupConfiguration.GFSQuarterlyMonth = 2
+backupConfiguration.GFSQuarterlyDay = 6
+backupConfiguration.GFSQuarterlyQuarterWeek = 1
+
+//backupConfiguration.GFSYearlyDayOfMonth = 31
+//backupConfiguration.GFSYearlyMonth = 1
+backupConfiguration.GFSYearlyDay = 6
+backupConfiguration.GFSYearlyDayWeek = 2
+
 runtest(start.clone(),end.clone(),backupConfiguration)
 
