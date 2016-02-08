@@ -441,7 +441,7 @@ function VeeamBackupConfigurationObject(style,simplePoints,sourceSize)
 	VeeamBackupConfigurationObj.GFS = {"W":0,"M":0,"Q":0,"Y":0}
 	
 	//v9 active full
-	VeeamBackupConfigurationObj.ActiveFull = 0
+	VeeamBackupConfigurationObj.GFSActiveFull = 0
 
 	
 	//weekly defaults
@@ -674,10 +674,11 @@ function VeeamPureEngine()
 		var ydate = ydate.clone()
 		
 		var markers = new Object();
-		markers.w = 0
-		markers.m = 0
-		markers.q = 0
-		markers.y = 0
+		markers.W = 0
+		markers.M = 0
+		markers.Q = 0
+		markers.Y = 0
+		markers.all = []
 		markers.touched = 0
 		markers.testmark = function(gfsmoment,marker,predate,postdate) {
 				if (predate > postdate) {
@@ -690,6 +691,7 @@ function VeeamPureEngine()
 						this[marker] = 1
 						this["touched"] = 1
 						this[marker+"gfs"] = gfsmoment.clone()
+						this.all.push(marker)
 				}
 		}
 		
@@ -712,7 +714,7 @@ function VeeamPureEngine()
 			//skipping forward until we get to today GFS point
 			while(gfsp <= ydate)
 			{
-				markers.testmark(gfsp,"w",xdate.clone(),ydate.clone())
+				markers.testmark(gfsp,"W",xdate.clone(),ydate.clone())
 				gfsp.add(1,'weeks')
 			}
 			
@@ -737,7 +739,7 @@ function VeeamPureEngine()
 						if(gfsp.date() > backupConfiguration.GFSMonthlyDayOfMonth) { gfsp.date(backupConfiguration.GFSMonthlyDayOfMonth) }
 						gfsp.hour(backupConfiguration.GFSWeeklyHour).minute(0).second(0).millisecond(0);
 						
-						markers.testmark(gfsp,"m",xdate.clone(),ydate.clone())
+						markers.testmark(gfsp,"M",xdate.clone(),ydate.clone())
 						
 						gfsp.subtract(1,'months').endOf('month')
 					}
@@ -750,7 +752,7 @@ function VeeamPureEngine()
 						gfsp.hour(backupConfiguration.GFSWeeklyHour).minute(0).second(0).millisecond(0);
 						gfsp.date(backupConfiguration.GFSMonthlyDayOfMonth) 
 						
-						markers.testmark(gfsp,"m",xdate.clone(),ydate.clone())
+						markers.testmark(gfsp,"M",xdate.clone(),ydate.clone())
 
 						gfsp.add(1,'months').startOf('month')
 					}
@@ -764,7 +766,7 @@ function VeeamPureEngine()
 							gfsp.subtract(1,'day')	
 						}
 						gfsp.hour(backupConfiguration.GFSWeeklyHour).minute(0).second(0).millisecond(0);
-						markers.testmark(gfsp,"m",xdate.clone(),ydate.clone())
+						markers.testmark(gfsp,"M",xdate.clone(),ydate.clone())
 
 						gfsp.subtract(1,'months').endOf('month');
 					}
@@ -780,7 +782,7 @@ function VeeamPureEngine()
 						gfsp.add((backupConfiguration.GFSMonthlyMonthWeek-1),'weeks')
 						gfsp.hour(backupConfiguration.GFSWeeklyHour).minute(0).second(0).millisecond(0);
 						
-						markers.testmark(gfsp,"m",xdate.clone(),ydate.clone())
+						markers.testmark(gfsp,"M",xdate.clone(),ydate.clone())
 						gfsp.add(1,'months').startOf('month');
 					}
 				}
@@ -807,7 +809,7 @@ function VeeamPureEngine()
 						if(gfsp.date() > backupConfiguration.GFSQuarterlyDayOfMonth) { gfsp.date(backupConfiguration.GFSQuarterlyDayOfMonth) }
 						gfsp.hour(backupConfiguration.GFSWeeklyHour).minute(0).second(0).millisecond(0);
 						
-						markers.testmark(gfsp,"q",xdate.clone(),ydate.clone())
+						markers.testmark(gfsp,"Q",xdate.clone(),ydate.clone())
 						
 						gfsp.subtract(1,'quarters').endOf('quarter')
 					}				
@@ -820,7 +822,7 @@ function VeeamPureEngine()
 						gfsp.hour(backupConfiguration.GFSWeeklyHour).minute(0).second(0).millisecond(0);
 						gfsp.date(backupConfiguration.GFSQuarterlyDayOfMonth) 
 						
-						markers.testmark(gfsp,"q",xdate.clone(),ydate.clone())
+						markers.testmark(gfsp,"Q",xdate.clone(),ydate.clone())
 				
 						gfsp.add(1,'quarters').startOf('quarter')
 						
@@ -835,7 +837,7 @@ function VeeamPureEngine()
 							gfsp.subtract(1,'day')	
 						}
 						gfsp.hour(backupConfiguration.GFSWeeklyHour).minute(0).second(0).millisecond(0);
-						markers.testmark(gfsp,"q",xdate.clone(),ydate.clone())
+						markers.testmark(gfsp,"Q",xdate.clone(),ydate.clone())
 
 						gfsp.subtract(1,'quarters').endOf('quarter');
 					}
@@ -852,7 +854,7 @@ function VeeamPureEngine()
 						
 						gfsp.hour(backupConfiguration.GFSWeeklyHour).minute(0).second(0).millisecond(0);
 						
-						markers.testmark(gfsp,"q",xdate.clone(),ydate.clone())
+						markers.testmark(gfsp,"Q",xdate.clone(),ydate.clone())
 						
 						gfsp.add(1,'quarters').startOf('quarter');
 					}
@@ -879,7 +881,7 @@ function VeeamPureEngine()
 						if(gfsp.date() > backupConfiguration.GFSYearlyDayOfMonth) { gfsp.date(backupConfiguration.GFSYearlyDayOfMonth) }
 						gfsp.hour(backupConfiguration.GFSWeeklyHour).minute(0).second(0).millisecond(0);
 						
-						markers.testmark(gfsp,"y",xdate.clone(),ydate.clone())
+						markers.testmark(gfsp,"Y",xdate.clone(),ydate.clone())
 						
 						gfsp.subtract(1,'years').endOf('year')
 					}				
@@ -892,7 +894,7 @@ function VeeamPureEngine()
 						gfsp.date(backupConfiguration.GFSYearlyDayOfMonth) 
 						gfsp.hour(backupConfiguration.GFSWeeklyHour).minute(0).second(0).millisecond(0);
 						
-						markers.testmark(gfsp,"y",xdate.clone(),ydate.clone())
+						markers.testmark(gfsp,"Y",xdate.clone(),ydate.clone())
 				
 						gfsp.add(1,'years').startOf('year')
 						
@@ -907,7 +909,7 @@ function VeeamPureEngine()
 							gfsp.subtract(1,'day')	
 						}
 						gfsp.hour(backupConfiguration.GFSWeeklyHour).minute(0).second(0).millisecond(0);
-						markers.testmark(gfsp,"y",xdate.clone(),ydate.clone())
+						markers.testmark(gfsp,"Y",xdate.clone(),ydate.clone())
 
 						gfsp.subtract(1,'years').endOf('year');
 					}
@@ -924,7 +926,7 @@ function VeeamPureEngine()
 						
 						gfsp.hour(backupConfiguration.GFSWeeklyHour).minute(0).second(0).millisecond(0);
 						
-						markers.testmark(gfsp,"y",xdate.clone(),ydate.clone())
+						markers.testmark(gfsp,"Y",xdate.clone(),ydate.clone())
 						
 						gfsp.add(1,'years').startOf('year');
 					}
@@ -1220,6 +1222,25 @@ function VeeamPureEngine()
 		//objects that are not siblings or parents should be deleted
 		var keep = ret[ret.length-1]
 		
+		var gfsrecount = function(point,gfscounters) {
+			var shouldBeKept = 0
+			
+			$.each(point.GFSType,function( key, gfstype ) {
+							if (gfscounters[gfstype] <= backupConfiguration.GFS[gfstype])
+							{
+								shouldBeKept=1
+								point.GFSPointids[gfstype] = gfscounters[gfstype]
+								gfscounters[gfstype] = gfscounters[gfstype] + 1	
+							}
+							else
+							{
+								point.GFSPointids[gfstype] = -1
+							}
+			})
+			return shouldBeKept
+		}
+		
+		
 		for(var counter=ret.length-1;counter >= 0;counter = counter - 1 )
 		{
 			var point = ret[counter]
@@ -1245,32 +1266,42 @@ function VeeamPureEngine()
 					backupResult.safeToMerge = 0
 				}
 			}
+			//we have GFS in our main chain, so they need to be substracted from the GFS count
+			//garbagecollector should move them to GFS chain if they are no longer part of simplePoint chain 
+			var gfsactiveshouldkeep = 0
+			if (backupConfiguration.GFSActiveFull && point.isVBK() && point.isMarkedForGFS()) {				
+					gfsactiveshouldkeep = gfsrecount(point,gfscounters)
+			}	
 			
 			//marks for garbage collection
 			if(point.pointid <= backupConfiguration.simplePoints)
 			{
 				keep = point
-				point.flagForKeepId = 0
+				point.flagForKeepId = 0		
 			}
 			else if ((keep.parent != point.parent && keep.parent != point) || (point.parent.isnn() && point.parent.pointDate > point.pointDate  ))
 			{
-				point.flaggedForDeletion = 1
+				//if it is a gfs point and we are working active full, we should reconsider keeping it
+				if (!gfsactiveshouldkeep) {
+					point.flaggedForDeletion = 1	
+				} else {
+					point.flagForKeepId = -1
+				}
 			}
 			else
-			{
+			{				
 				point.flagForKeepId = keep.pointid
 			}
 			
-			
-			if(point.isMarkedForGFS())
+			if(point.isMarkedForGFS() && !point.isVBK)
 			{
 				//incStars
-						if(pureEngineLocal.flags.incStars)
-						{				
-							$.each($.unique(point.GFSType),function( key, gfstype ) {
-										point.GFSPointids[gfstype] = "*"						
-							})
-						}
+				if(pureEngineLocal.flags.incStars)
+				{				
+					$.each($.unique(point.GFSType),function( key, gfstype ) {
+								point.GFSPointids[gfstype] = "*"						
+					})
+				}
 			}
 			
 			simplepoint = simplepoint + 1
@@ -1325,6 +1356,7 @@ function VeeamPureEngine()
 			point = gfs[counter]
 			if(!point.flaggedForDeletion)
 			{
+				
 				newGfs.push(point)
 			}
 			else
@@ -1340,7 +1372,13 @@ function VeeamPureEngine()
 			point = ret[counter]
 			if(!point.flaggedForDeletion)
 			{
-				newRet.push(point)
+				if (backupConfiguration.GFSActiveFull && point.isVBK() && point.isMarkedForGFS() && point.flagForKeepId == -1 ) {
+					point.type = "G"
+					point.flagForKeepId = 0
+					newGfs.push(point)
+				} else {
+					newRet.push(point)
+				}
 			}
 			else
 			{
@@ -1954,14 +1992,23 @@ function VeeamPureEngine()
 						backupResult.beginAction(exectime.clone())
 						var latest = backupResult.retentionLatest()
 						
-						newpoint = VeeamBackupFileObject("incremental.vib",VeeamBackupFileNullObject(),"I",backupConfiguration.getIncrementalDataStats(exectime.clone()),exectime.clone(),exectime.clone())
+						var markers = { touched:0 }
+						if(backupConfiguration.GFSActiveFull) {
+							markers = this.getGFSMarkers(backupConfiguration,latest.pointDate.clone(),exectime.clone())
+						}
+						
+
+						var newpoint = VeeamBackupFileObject("incremental.vib",VeeamBackupFileNullObject(),"I",backupConfiguration.getIncrementalDataStats(exectime.clone()),exectime.clone(),exectime.clone())
 						if ($.inArray(latest.type,["F","S","I"]) == -1)
 						{
-							newpoint = VeeamBackupFileObject("full.vbk",VeeamBackupFileNullObject(),"F",backupConfiguration.getFullDataStats(exectime.clone()),exectime.clone(),exectime.clone())
+							newpoint = VeeamBackupFileObject("full.vbk",VeeamBackupFileNullObject(),"S",backupConfiguration.getFullDataStats(exectime.clone()),exectime.clone(),exectime.clone())
 							backupResult.addLastAction(VeeamBackupLastActionObject(0,"Force Created VBK (could not find for vib) /  SEQ 1x I/O Write / 1x "+ this.humanReadableFilesize(newpoint.getDataStats().f())))
-						}
-						else
-						{
+						} else if (markers.touched == 1) {
+							newpoint = VeeamBackupFileObject("full.vbk",VeeamBackupFileNullObject(),"S",backupConfiguration.getFullDataStats(exectime.clone()),exectime.clone(),exectime.clone())
+							newpoint.GFSType = markers.all
+							
+							backupResult.addLastAction(VeeamBackupLastActionObject(0,"GFS POINT /  SEQ 1x I/O Write / 1x "+ this.humanReadableFilesize(newpoint.getDataStats().f())))
+						} else {
 							backupResult.addLastAction(VeeamBackupLastActionObject(0,"Created VIB /  SEQ 1x I/O Write / 1x  "+ this.humanReadableFilesize(newpoint.getDataStats().f())))
 							//if the previous point was a vbk, this point his parent will be the previous point
 							//if it was an increment, we should connect it to the parent of the increment
@@ -1973,16 +2020,18 @@ function VeeamPureEngine()
 							{
 								newpoint.parent = latest.parent
 							}
-							
-							this.markforGFS(backupConfiguration,exectime.clone(),latest,newpoint)
+							if(!backupConfiguration.GFSActiveFull) {
+								this.markforGFS(backupConfiguration,exectime.clone(),latest,newpoint)
+							}
+						}
+					
+						backupResult.retentionPush(newpoint)
+						
+						if(!backupConfiguration.GFSActiveFull) {
+							this.mergeVBK(backupResult,backupConfiguration,exectime.clone())
 						}
 						
 						
-						backupResult.retentionPush(newpoint)
-						
-						
-						
-						this.mergeVBK(backupResult,backupConfiguration,exectime.clone())
 						this.doRecycle(backupResult,backupConfiguration,exectime.clone())
 						
 						//worst case verification
