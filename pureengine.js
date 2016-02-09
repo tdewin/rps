@@ -80,6 +80,10 @@ function VeeamBackupDataStats(f,s,c,d,t)
 		t:function () { return this.transferCompression },
 		d:function () { return this.changeRate },
 		clone:function () { var clone = VeeamBackupDataStats(this.file,this.source,this.compression,this.changeRate,this.transferCompression);return clone  },
+		fullclone:function () {
+			
+			var clone = VeeamBackupDataStats(this.source*(this.compression/100),this.source,this.compression,0,this.transferCompression);return clone
+		},
 		sd:function () { return parseInt((this.source*this.changeRate)/100) },
 		trans:function () { return parseInt(((this.source*this.changeRate)/100)*(this.transferCompression/100)) }
 	}
@@ -391,7 +395,7 @@ function VeeamBackupConfigurationObject(style,simplePoints,sourceSize)
 		
 		var filevar = sourcevar*(this.changeRate/100)*(compressionvar/100)
 			
-		return VeeamBackupDataStats(filevar,sourcevar,this.compressionvar,this.changeRate,transferCompression)
+		return VeeamBackupDataStats(filevar,sourcevar,compressionvar,this.changeRate,transferCompression)
 	}
 	
 	
@@ -1494,6 +1498,7 @@ function VeeamPureEngine()
 				for(;counter < ret.length && ret[counter].pointid > backupConfiguration.simplePoints ;counter = counter +1 )
 				{
 					recyclebin.push(ret[counter])
+					parent.setDataStats(ret[counter].getDataStats().fullclone())
 				}
 				for(;counter < ret.length ;counter = counter +1 )
 				{
