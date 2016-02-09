@@ -1,5 +1,6 @@
 # 0.3.3:
 - Active Full on GFS support (v9) feature
+- Replica Support
 - Experimental Canvas rendering. Generates and image that can be used in word documents so that you do not need to take screenshots. In Firefox and Chrome you can uses the download link (unsupported HTML download attribute). For other browsers, you should be able to right click the images and select save as
 - Export URL: Generate an URL that you can use to reinput your current result. URL gets updated every time you click "simulate"
 - Moved simulate button so it makes more "sense"

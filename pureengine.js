@@ -81,8 +81,7 @@ function VeeamBackupDataStats(f,s,c,d,t)
 		d:function () { return this.changeRate },
 		clone:function () { var clone = VeeamBackupDataStats(this.file,this.source,this.compression,this.changeRate,this.transferCompression);return clone  },
 		fullclone:function () {
-			
-			var clone = VeeamBackupDataStats(this.source*(this.compression/100),this.source,this.compression,0,this.transferCompression);return clone
+			var clone = VeeamBackupDataStats(this.source*(this.compression/100),this.source,this.compression,100,this.transferCompression);return clone
 		},
 		sd:function () { return parseInt((this.source*this.changeRate)/100) },
 		trans:function () { return parseInt(((this.source*this.changeRate)/100)*(this.transferCompression/100)) }
