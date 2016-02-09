@@ -21,7 +21,8 @@
 <script src="URI.js"></script>
 <script src="moment.min.js"></script>
 <script src="filesize-mod.js"></script>
-<script src="pureengine.js"></script>
+<!--<script src="pureengine.js"></script>-->
+<script src="beta/pureengine.js"></script>
 
 <script>
 function showInputs(style)
@@ -118,6 +119,7 @@ function scenario(name,style)
 	this.activeMonthlyInc = [0,0,0,0,0,0,0,0,0,0,0,0]
 	this.activeMonthlyRev = [0,0,0,0,0,0,0,0,0,0,0,0]
 	this.GFS = {"W":0,"M":0,"Q":0,"Y":0}
+	this.GFSActiveFull = 0
 	this.dataGrowth = 0
 	this.dataGrowthRate = 10
 	this.dataGrowthYear = 1
@@ -167,9 +169,9 @@ function scenarios()
 	scenarioObj.retention = 7
 	scenariosLocal[scenarioObj.name] = scenarioObj
 	
-	scenarioObj = new scenario("Backup Copy Job GFS 4W/4M/4Q/1Y",3)
+	scenarioObj = new scenario("Backup Copy Job GFS 6W/12M/8Q/3Y",3)
 	scenarioObj.retention = 7
-	scenarioObj.GFS = {"W":4,"M":4,"Q":4,"Y":1}
+	scenarioObj.GFS = {"W":6,"M":12,"Q":8,"Y":3}
 	scenariosLocal[scenarioObj.name] = scenarioObj
 	
 	return scenariosLocal
@@ -493,8 +495,34 @@ function mappings()
 	mappingsLocal[mappingObj.variable] = mappingObj	
 	
 	
+	
+	mappingObj = new mapping("#idGFSActiveFull","GFSActiveFull",3)
+	mappingObj.urivar = "gaf"
+	mappingObj.guival = function() { return ($(this.id).is(':checked')?1:0) }
+	mappingObj.setDefault = function() {
+		var scenario = mappingsLocal["scenario"].convert()
+		var value = scenario[this.variable]
+		var jqselect = this.id
+		
+		if(value == 1)
+		{
+			$(jqselect).prop("checked",true)
+		}
+		else 
+		{
+			$(jqselect).prop("checked",false)
+		}
+	}
+	mappingObj.convert = function() {
+		return ($(this.id).is(':checked')?1:0)
+	}
+	mappingsLocal[mappingObj.variable] = mappingObj	
+	
+	
+	
+	
 	mappingObj = new mapping("idGFS","GFS",3)
-	mappingObj.univar = "g"
+	mappingObj.urivar = "g"
 	mappingObj.getURIVar = function() {
 		var tmpGFS = [0,0,0,0]
 		$.each({0:"W",1:"M",2:"Q",3:"Y"}, function (key,val) {
@@ -682,7 +710,7 @@ function renderCanvas(backupResult,showWorstCase)
 		ctx.fillText(txt,x,y+fs);
 	}
 	
-	//thrust me, I'm an engineer it took hours calculating an arrow and rectangles, don't try to understand unless you really want to
+	
 	var link = function(ctx,x,y,up) {
 		if(up) {
 			ctx.drawImage(imagearrowup,x,y);
@@ -1269,6 +1297,7 @@ $( document ).ready(function() {
 	checkURIParameter(uriscenario,getmap,"dgy","dataGrowthYear",floatfunction)
 	checkURIParameter(uriscenario,getmap,"dgr","dataGrowthRate",intfunction)
 
+	checkURIParameter(uriscenario,getmap,"gaf","GFSActiveFull",intfunction)
 	
 	//legacy parameters
 	checkURIParameter(uriscenario,getmap,"used","size",intfunction)
@@ -1543,7 +1572,7 @@ function rpcheck(jobject,defaultval) {
 </div>
 <div id="idreferences">
 <h1>The Restore Point Simulator</h1>
-Current version : <a href="release-notes.txt">0.3.2</a><br> 
+Current version : <a href="/releasenotes/">0.3.3</a><br> 
 Feedback via <a href="https://twitter.com/intent/tweet?screen_name=tdewin" style="text-decoration:none;">@tdewin</a> or on <a href="https://github.com/tdewin/rps/issues">GitHub</a><br>
 RPS heavily relies on some opensource <a href="#" onclick="showJS();return false;">javascript frameworks</a><br>
 </div>
@@ -1891,6 +1920,7 @@ RPS heavily relies on some opensource <a href="#" onclick="showJS();return false
 			<tr><td>Monthly</td><td><input class="alignwidth" type="text" id="idGFSM" value="0"></input></td></tr>
 			<tr><td>Quarterly</td><td><input class="alignwidth" type="text" id="idGFSQ" value="0"></input></td></tr>
 			<tr><td>Yearly</td><td><input class="alignwidth" type="text" id="idGFSY" value="0"></input></td></tr>
+			<tr><td><input type="checkbox" id="idGFSActiveFull"/></td><td>Active Full GFS</td></tr>
 		</table>
 </div>
 <div id="idDivRun">

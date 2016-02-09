@@ -246,16 +246,31 @@ function VeeamBackupFileObjectInheritable(file,parent,type,dataStats,createDate,
 			}
 			return ""
 	}
+	//VeeamBackupFileObj.GFSPointids = {W:0,M:0,Q:0,Y:0}
+	VeeamBackupFileObj.activeGFS = function() {
+			var active = 0
+			var p = this
+			$.each(["W","M","Q","Y"],function(k,v) {
+				if (p.GFSPointids[v] > 0) { active = 1 }
+			})
+			return active;
+	}
+	
 	VeeamBackupFileObj.toSimpleRetentionString = function () {
 		var keptFor = this.flagForKeepId
 		if(keptFor != 0) { keptFor = " ("+keptFor+")" }
 		else { keptFor = ""}
 	
-		var retString = ""+this.pointid+keptFor
+		//don't show -1
+		var retString = ""
+		if(this.pointid > 0) {
+			retString += this.pointid+keptFor
+		}
 		
-		if(this.type == "G")
+		if(this.activeGFS())
 		{
-			retString = this.simpleGFSStr(this.GFSPointids["W"],"W")+this.simpleGFSStr(this.GFSPointids["M"],"M")+this.simpleGFSStr(this.GFSPointids["Q"],"Q")+this.simpleGFSStr(this.GFSPointids["Y"],"Y")
+			if (retString != "") { retString += " "}
+			retString += this.simpleGFSStr(this.GFSPointids["W"],"W")+this.simpleGFSStr(this.GFSPointids["M"],"M")+this.simpleGFSStr(this.GFSPointids["Q"],"Q")+this.simpleGFSStr(this.GFSPointids["Y"],"Y")
 		}
 
 		return retString

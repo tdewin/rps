@@ -1,0 +1,37 @@
+<!DOCTYPE HTML>
+<html lang="en-US">
+<head>
+	<meta charset="UTF-8">
+	<title>Release Notes</title>
+	<style type="text/css">
+		body,a,p,div,table,tr,td {
+			font-family:arial, verdana;
+			font-size:12px;
+			color: #333;
+		}
+		a:link,a:visited,a:hover,a:active {
+			color: #333;
+		}
+
+		h1 {
+			font-family:arial, verdana;
+			font-size:16px;
+		}
+	</style>
+	<script src="markdown.min.js" type="text/javascript"></script>
+	<script src="../jquery-2.0.1.min.js"></script>
+</head>
+<body>
+<div id="notes"> 
+
+</div>
+<script>
+
+$.get( "release-notes.md", function( data ) {
+  $("#notes").html(  markdown.toHTML(data) );
+}).fail(function() { $("#notes").html("<p>Something went wrong while fetching the release-notes, you can also find them on <a href='https://github.com/tdewin/rps/blob/master/releasenotes/release-notes.md'>github</a></p>")});
+
+</script>
+<p>Generated from <a href="release-notes.md">release-notes.md</a> with <a href="https://github.com/evilstreak/markdown-js">Markdown-js</a> </p>
+</body>
+</html>
