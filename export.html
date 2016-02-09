@@ -21,8 +21,8 @@
 <script src="URI.js"></script>
 <script src="moment.min.js"></script>
 <script src="filesize-mod.js"></script>
-<!--<script src="pureengine.js"></script>-->
-<script src="beta/pureengine.js"></script>
+<script src="pureengine.js"></script>
+<!--<script src="beta/pureengine.js"></script>-->
 
 <script>
 function showInputs(style)
@@ -173,6 +173,11 @@ function scenarios()
 	scenarioObj.retention = 7
 	scenarioObj.GFS = {"W":6,"M":12,"Q":8,"Y":3}
 	scenariosLocal[scenarioObj.name] = scenarioObj
+	
+	scenarioObj = new scenario("Replica",4)
+	scenarioObj.retention = 7
+	scenariosLocal[scenarioObj.name] = scenarioObj
+	
 	
 	return scenariosLocal
 }
@@ -724,15 +729,15 @@ function renderCanvas(backupResult,showWorstCase)
 	$.each(files,function(i,f) {
 		var x = margindoc+retentionspace
 		var y = margindoc+(i*(fileheight+margin))
-		var width = (f.isVBK()?fullwidth:incwidth)
+		var width = (f.isFull()?fullwidth:incwidth)
 		var color = ((f.type == "F")?colactive:((f.type == "G")?colgfs:colsyn))
 
 		t(ctx,f.toSimpleRetentionString(),margindoc,y)
 		t(ctx,f.file,margindoc+retentionspace+fullwidth+10,y)
 		t(ctx,humanReadableFilesizeWithForce(f.getDataStats().f(),unifiedeval),margindoc+retentionspace+fullwidth+200,y)
 		
-		if(!f.isVBK()) {
-			link(ctx,x,y,(f.type == "I")?1:0)
+		if(!f.isFull()) {
+			link(ctx,x,y,(f.type == "I"||f.type == "P")?1:0)
 			x = x+triangleLinkSize
 		}
 		
@@ -809,7 +814,7 @@ function prelogic(files) {
 		{
 			p.unifiedeval = testeval
 		}
-		if(val.isVBK()) {
+		if(val.isFull()) {
 			p.full += 1
 		} else { 
 			p.inc += 1 
@@ -900,7 +905,7 @@ function renderGFX(backupResult,showWorstCase)
 		table.tr().td(file.toRetentionString())
 		var fs = file.getDataStats().f()
 		
-		if(file.isVBK())
+		if(file.isFull())
 		{
 			fulls++
 			if(fs > fullmax) { fullmax = fs }
@@ -930,6 +935,10 @@ function renderGFX(backupResult,showWorstCase)
 			{
 				table.img("rpsimg/inc-up-img2.png")
 			}
+			else if(file.type == "P")
+			{
+				table.img("rpsimg/inc-up-img2.png")
+			}
 			else
 			{
 				table.img("rpsimg/rev-down-img2.png")
@@ -941,7 +950,7 @@ function renderGFX(backupResult,showWorstCase)
 		if(showrealname) {
 			fname = file.realFileNameStr()
 		}
-		table.td(fname).a(hrfsize).attr("onClick","showVisualData(["+file.getDataStats().sd()+","+file.getDataStats().f()+"]);return false;").td(file.modifyDate.format("YYYY-MM-DD dd HH")).td(file.pointDate.format("YYYY-MM-DD dd HH"))		
+		table.td(fname).a(hrfsize).attr("onClick","showVisualData(["+file.getDataStats().sd()+","+file.getDataStats().trans()+"]);return false;").td(file.modifyDate.format("YYYY-MM-DD dd HH")).td(file.pointDate.format("YYYY-MM-DD dd HH"))		
 	}
 	table.tr().td("").td("").td("").td(filesizeTotal).attr("class","totalTopLine").td("").td("")
 	table.tr().td("").td("").td("Work Space").attr("class","alert").td("+"+workingSpace).attr("class","alert").td("").td("")
@@ -1258,7 +1267,7 @@ $( document ).ready(function() {
 	checkURIParameter(uriscenario,getmap,"i","interval",0)
 	checkURIParameter(uriscenario,getmap,"m","style",function(intcheck,scenario) {
 		var toReturn = parseInt(intcheck); 
-		if(isNaN(toReturn) || toReturn < 1 || toReturn > 3) { 
+		if(isNaN(toReturn) || toReturn < 1 || toReturn > 4) { 
 			toReturn = 1 
 		};
 		return toReturn
@@ -1538,7 +1547,7 @@ function rpcheck(jobject,defaultval) {
 	var jqo = $(jobject)
 	var data = jqo.val();
 	var multi={d:1,w:7,m:31,q:92,y:365};
-	var multitest = /^([0-9.]+)[ ]?([dwmqy])?$/i.exec(data); 
+	var multitest = /^([0-9.]+)[ ]?([dwmqy])$/i.exec(data); 
 	if(multitest) { 
 		var gsv = GUIStateVariables()
 		var interval = gsv.mappings["interval"].convert()
@@ -1596,6 +1605,7 @@ RPS heavily relies on some opensource <a href="#" onclick="showJS();return false
 				<option value="1" >Incremental</option>
 				<option value="2" >Reverse</option>
 				<option value="3" >Backup Copy Job</option>
+				<option value="4" >Replica</option>
 			</select>
 		</td><td></td></tr>
 		<tr><td>Used Size GB</td><td colspan="2"><input class="alignwidth" type="text" id="idData" value="1000" onchange="gbcheck(this);return false" ></input></td>

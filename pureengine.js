@@ -12,6 +12,9 @@ VeeamBackupFile:
 	type I = vib
 	type S = vbk synthetic
 	type G = GFS
+	type D = vm disk 
+	type P = snapshot
+	
 	fileSize = size of the file in bytes
 	createDate = when is the file originally created
 	modifyDate = when is the file last modified, initially the same as createDate
@@ -63,19 +66,22 @@ if (typeof exports === 'object')
 		return VeeamPureEngine()
 	}
 }
-function VeeamBackupDataStats(f,s,c,d)
+function VeeamBackupDataStats(f,s,c,d,t)
 {
 	return {
 		file:f,
 		source:s,
 		compression:c,
+		transferCompression:t,
 		changeRate:d,
 		f:function () { return this.file },
 		s:function () { return this.source },
 		c:function () { return this.compression },
+		t:function () { return this.transferCompression },
 		d:function () { return this.changeRate },
-		clone:function () { return VeeamBackupDataStats(this.file,this.source,this.compression,this.changeRate) },
-		sd:function () { return parseInt((this.source*this.changeRate)/100) }
+		clone:function () { var clone = VeeamBackupDataStats(this.file,this.source,this.compression,this.changeRate,this.transferCompression);return clone  },
+		sd:function () { return parseInt((this.source*this.changeRate)/100) },
+		trans:function () { return parseInt(((this.source*this.changeRate)/100)*(this.transferCompression/100)) }
 	}
 }
 function VeeamBackupFileObject(file,parent,type,dataStats,createDate,pointDate)
@@ -144,7 +150,9 @@ function VeeamBackupFileObjectInheritable(file,parent,type,dataStats,createDate,
 			this.GFSType.push(type)
 		}
 	}
-	
+	VeeamBackupFileObj.isFull = function() {
+		return ($.inArray(this.type,["G","S","F","D"]) != -1)
+	}
 	VeeamBackupFileObj.isVBK = function() {
 		return ($.inArray(this.type,["G","S","F"]) != -1)
 	}
@@ -287,7 +295,7 @@ function VeeamBackupFileObjectInheritable(file,parent,type,dataStats,createDate,
 
 function VeeamBackupFileNullObject()
 {
-	var VeeamBackupFileObjNull = VeeamBackupFileObjectInheritable(0,0,0,VeeamBackupDataStats(0,0,0,0),0,0);
+	var VeeamBackupFileObjNull = VeeamBackupFileObjectInheritable(0,0,0,VeeamBackupDataStats(0,0,0,0,0),0,0);
 
 	VeeamBackupFileObjNull.fullfile = function () { return "<null>" }
 	VeeamBackupFileObjNull.modifyStr = function () { return "<null>" }
@@ -353,8 +361,16 @@ function VeeamBackupConfigurationObject(style,simplePoints,sourceSize)
 	
 	VeeamBackupConfigurationObj.getFullDataStats = function (calcdate) {
 		var sourcevar = this.getSourceSize(calcdate)
-		var filevar = sourcevar*(this.compression/100)
-		return VeeamBackupDataStats(filevar,sourcevar,this.compression,100)
+		var compressionvar = this.compression; 
+		var transferCompression = this.compression;
+		
+		//replica are never compressed
+		if(this.style == 4) { 
+			compressionvar = 100
+		}
+		
+		var filevar = sourcevar*(compressionvar/100)
+		return VeeamBackupDataStats(filevar,sourcevar,compressionvar,100,transferCompression)
 	}
 	
 	VeeamBackupConfigurationObj.getIncrementalDataStats = function (calcdate) {
@@ -365,9 +381,17 @@ function VeeamBackupConfigurationObject(style,simplePoints,sourceSize)
 		{
 			compressionvar = compressionDelta
 		}
+		var transferCompression = compressionvar;
+		
+		//replica are never compressed
+		if(this.style == 4) { 
+			compressionvar = 100
+		}
+		
+		
 		var filevar = sourcevar*(this.changeRate/100)*(compressionvar/100)
 			
-		return VeeamBackupDataStats(filevar,sourcevar,this.compressionvar,this.changeRate)
+		return VeeamBackupDataStats(filevar,sourcevar,this.compressionvar,this.changeRate,transferCompression)
 	}
 	
 	
@@ -510,6 +534,7 @@ function VeeamBackupResultObject()
 	
 	//don't rely on this value unless you execute a recalcpointid
 	VeeamBackupResultObj.newestFull = -1
+	VeeamBackupResultObj.newestSnap = -1
 	VeeamBackupResultObj.safeToMerge = 0
 	
 	VeeamBackupResultObj.worstCaseSize = 0
@@ -1227,124 +1252,167 @@ function VeeamPureEngine()
 		var pureEngineLocal = this
 		var simplepoint = 1
 		var gfscounters = {W:1,M:1,Q:1,Y:1}
-		
-		var firstfullfound = 0
-		backupResult.newestFull = -1
-		backupResult.safeToMerge = 1
-		
 		var ret = backupResult.retention
-		//this is the object we want to keep
-		//objects that are not siblings or parents should be deleted
-		var keep = ret[ret.length-1]
 		
-		var gfsrecount = function(point,gfscounters) {
-			var shouldBeKept = 0
-			
-			$.each(point.GFSType,function( key, gfstype ) {
-							if (gfscounters[gfstype] <= backupConfiguration.GFS[gfstype])
-							{
-								shouldBeKept=1
-								point.GFSPointids[gfstype] = gfscounters[gfstype]
-								gfscounters[gfstype] = gfscounters[gfstype] + 1	
-							}
-							else
-							{
-								point.GFSPointids[gfstype] = -1
-							}
-			})
-			return shouldBeKept
-		}
-		
-		
-		for(var counter=ret.length-1;counter >= 0;counter = counter - 1 )
+		if(backupConfiguration.style == 4)
 		{
-			var point = ret[counter]
-			point.pointid = simplepoint
-			
-			if(!firstfullfound)
+			//instant cleanup!
+			backupResult.safeToMerge = 1
+			backupResult.newestSnap = -1
+			disk = ret[0]
+			if (disk.type == "D")
 			{
-				if(point.isVBK())
-				{
-					firstfullfound = 1
-					backupResult.newestFull = point.pointid
-					
-					var peek = counter - 1
-					if(peek >= 0)
+					for(var counter=ret.length-1;counter >= 0;counter = counter - 1 )
 					{
-						if(ret[peek].type == "R")
-						{
+						point = ret[counter]
+						if(point.type == "D" && point == disk) {
+							point.pointid = 0
+						} else if (point.type == "P" && point.parent == disk) {
+							point.pointid = simplepoint
+							if(simplepoint > backupResult.newestSnap) {
+								backupResult.newestSnap = simplepoint
+							}
+							simplepoint = simplepoint + 1
+						} else {
+							//garbage in the chain
+							//remove it and hopefully get a useful result next run
 							backupResult.safeToMerge = 0
+							point.flaggedForDeletion = 1
+							pureEngineLocal.debugln("Garbage, should not happen "+point.toString(),1)
+						}
+					}	
+			} else {
+				pureEngineLocal.debugln("First file is not disk "+disk.toString(),1)
+				backupResult.safeToMerge = 0
+				for(var counter=ret.length-1;counter >= 0;counter = counter - 1 )
+				{
+					var point = ret[counter]
+					point.flaggedForDeletion = 1	
+				}
+			}
+			
+			
+		}
+		else
+		{
+			var firstfullfound = 0
+			backupResult.newestFull = -1
+			backupResult.safeToMerge = 1
+			
+			
+			//this is the object we want to keep
+			//objects that are not siblings or parents should be deleted
+			var keep = ret[ret.length-1]
+			
+			var gfsrecount = function(point,gfscounters) {
+				var shouldBeKept = 0
+				
+				$.each(point.GFSType,function( key, gfstype ) {
+								if (gfscounters[gfstype] <= backupConfiguration.GFS[gfstype])
+								{
+									shouldBeKept=1
+									point.GFSPointids[gfstype] = gfscounters[gfstype]
+									gfscounters[gfstype] = gfscounters[gfstype] + 1	
+								}
+								else
+								{
+									point.GFSPointids[gfstype] = -1
+								}
+				})
+				return shouldBeKept
+			}
+			
+			
+			for(var counter=ret.length-1;counter >= 0;counter = counter - 1 )
+			{
+				var point = ret[counter]
+				point.pointid = simplepoint
+				
+				if(!firstfullfound)
+				{
+					if(point.isFull())
+					{
+						firstfullfound = 1
+						backupResult.newestFull = point.pointid
+						
+						var peek = counter - 1
+						if(peek >= 0)
+						{
+							if(ret[peek].type == "R")
+							{
+								backupResult.safeToMerge = 0
+							}
 						}
 					}
+					else if ($.inArray(point.type,["I"]) == -1) {
+						backupResult.safeToMerge = 0
+					}
 				}
-				else if (point.type != "I") {
-					backupResult.safeToMerge = 0
+				//we have GFS in our main chain, so they need to be substracted from the GFS count
+				//garbagecollector should move them to GFS chain if they are no longer part of simplePoint chain 
+				var gfsactiveshouldkeep = 0
+				if (backupConfiguration.GFSActiveFull && point.isVBK() && point.isMarkedForGFS()) {				
+						gfsactiveshouldkeep = gfsrecount(point,gfscounters)
+				}	
+				
+				//marks for garbage collection
+				if(point.pointid <= backupConfiguration.simplePoints)
+				{
+					keep = point
+					point.flagForKeepId = 0		
 				}
-			}
-			//we have GFS in our main chain, so they need to be substracted from the GFS count
-			//garbagecollector should move them to GFS chain if they are no longer part of simplePoint chain 
-			var gfsactiveshouldkeep = 0
-			if (backupConfiguration.GFSActiveFull && point.isVBK() && point.isMarkedForGFS()) {				
-					gfsactiveshouldkeep = gfsrecount(point,gfscounters)
-			}	
-			
-			//marks for garbage collection
-			if(point.pointid <= backupConfiguration.simplePoints)
-			{
-				keep = point
-				point.flagForKeepId = 0		
-			}
-			else if ((keep.parent != point.parent && keep.parent != point) || (point.parent.isnn() && point.parent.pointDate > point.pointDate  ))
-			{
-				//if it is a gfs point and we are working active full, we should reconsider keeping it
-				if (!gfsactiveshouldkeep) {
-					point.flaggedForDeletion = 1	
-				} else {
-					point.flagForKeepId = -1
+				else if ((keep.parent != point.parent && keep.parent != point) || (point.parent.isnn() && point.parent.pointDate > point.pointDate  ))
+				{
+					//if it is a gfs point and we are working active full, we should reconsider keeping it
+					if (!gfsactiveshouldkeep) {
+						point.flaggedForDeletion = 1	
+					} else {
+						point.flagForKeepId = -1
+					}
 				}
-			}
-			else
-			{				
-				point.flagForKeepId = keep.pointid
-			}
-			
-			if(point.isMarkedForGFS() && !point.isVBK)
-			{
-				//incStars
-				if(pureEngineLocal.flags.incStars)
+				else
 				{				
-					$.each($.unique(point.GFSType),function( key, gfstype ) {
-								point.GFSPointids[gfstype] = "*"						
-					})
+					point.flagForKeepId = keep.pointid
 				}
+				
+				if(point.isMarkedForGFS() && !point.isVBK)
+				{
+					//incStars
+					if(pureEngineLocal.flags.incStars)
+					{				
+						$.each($.unique(point.GFSType),function( key, gfstype ) {
+									point.GFSPointids[gfstype] = "*"						
+						})
+					}
+				}
+				
+				simplepoint = simplepoint + 1
 			}
 			
-			simplepoint = simplepoint + 1
-		}
-		
-		var gfs = backupResult.GFS
-		for(var counter=gfs.length-1;counter >= 0;counter = counter - 1 )
-		{
-			var point = gfs[counter]
-			point.pointid = -1
-			
-			var shouldBeKept = 0
-			
-			$.each(point.GFSType,function( key, gfstype ) {
-					if (gfscounters[gfstype] <= backupConfiguration.GFS[gfstype])
-					{
-						shouldBeKept=1
-						point.GFSPointids[gfstype] = gfscounters[gfstype]
-						gfscounters[gfstype] = gfscounters[gfstype] + 1
-					}
-					else
-					{
-						point.GFSPointids[gfstype] = -1
-					}
-			})
-			if(!shouldBeKept)
+			var gfs = backupResult.GFS
+			for(var counter=gfs.length-1;counter >= 0;counter = counter - 1 )
 			{
-				point.flaggedForDeletion = 1
+				var point = gfs[counter]
+				point.pointid = -1
+				
+				var shouldBeKept = 0
+				
+				$.each(point.GFSType,function( key, gfstype ) {
+						if (gfscounters[gfstype] <= backupConfiguration.GFS[gfstype])
+						{
+							shouldBeKept=1
+							point.GFSPointids[gfstype] = gfscounters[gfstype]
+							gfscounters[gfstype] = gfscounters[gfstype] + 1
+						}
+						else
+						{
+							point.GFSPointids[gfstype] = -1
+						}
+				})
+				if(!shouldBeKept)
+				{
+					point.flaggedForDeletion = 1
+				}
 			}
 		}
 	}
@@ -1407,6 +1475,41 @@ function VeeamPureEngine()
 		backupResult.GFS = newGfs
 	}
 
+	//very unsafe :)
+	PureEngineObj.mergeSnap = function(backupResult,backupConfiguration,mergetime) {
+		this.recalcPointIDs(backupConfiguration,backupResult)
+		if(backupResult.safeToMerge) {
+			if(backupResult.newestSnap > backupConfiguration.simplePoints)
+			{
+				this.debugln("Merging snap",2)
+				
+				var recyclebin = []
+				var newRet = []
+				var ret = backupResult.retention
+				
+				parent = ret.shift()
+				newRet.push(parent)
+				
+				var counter = 0
+				for(;counter < ret.length && ret[counter].pointid > backupConfiguration.simplePoints ;counter = counter +1 )
+				{
+					recyclebin.push(ret[counter])
+				}
+				for(;counter < ret.length ;counter = counter +1 )
+				{
+					newRet.push(ret[counter])
+				}
+				
+				backupResult.garbage.concat(recyclebin)
+				backupResult.retention = newRet
+				
+			}
+			
+		} else {
+			this.debugln("Forced recycle, should not happen",2)
+			this.doRecycle(backupResult,backupConfiguration,mergetime.clone())
+		}
+	}
 	//new merging engine optimized after finding out GFS miscalculation
 	//it is following more the logic described in the manual
 	PureEngineObj.mergeVBK = function(backupResult,backupConfiguration,mergetime)
@@ -1659,7 +1762,7 @@ function VeeamPureEngine()
 			for(var counter=0;counter < ret.length;counter = counter +1)
 			{
 				var preclone = ret[counter]
-				if(preclone.isVBK())
+				if(preclone.isFull())
 				{
 					parents[preclone.uid] = preclone.clone()
 				}
@@ -1670,7 +1773,7 @@ function VeeamPureEngine()
 				var point = ret[counter]
 
 				
-				if(point.isVBK() && parents[point.uid])
+				if(point.isFull() && parents[point.uid])
 				{
 					retCopy.push(parents[point.uid])
 
@@ -1822,6 +1925,12 @@ function VeeamPureEngine()
 			
 			predict.add({hours:addHours})
 			predict.add({hours:maxAdd})
+		}
+		else if (backupConfiguration.style == 4)
+		{
+			var addHours = steptimeinhours*(backupConfiguration.simplePoints+2)+48
+			predict.add({hours:addHours})
+			
 		}
 		this.debugln("Predictive result set to "+predict.format(),3)
 		return predict
@@ -2056,8 +2165,39 @@ function VeeamPureEngine()
 				}
 			}
 		}
-		else
-		{
+		else if (backupConfiguration.style == 4) {			
+			for(;exectime.isBefore(halttime);exectime = exectime.add(steptime))
+			{
+				if(backupResult.retention.length == 0)
+				{
+					backupResult.beginAction(exectime.clone())
+					var full= VeeamBackupFileObject("vmdisk.vmdk",VeeamBackupFileNullObject(),"D",backupConfiguration.getFullDataStats(exectime.clone()),exectime.clone(),exectime.clone())
+					var snapshot = VeeamBackupFileObject("delta-0000.vmdk",VeeamBackupFileNullObject(),"P",backupConfiguration.getIncrementalDataStats(exectime.clone()),exectime.clone(),exectime.clone())
+					snapshot.parent = full
+					
+					full.pointid = "0"
+					backupResult.retentionPush(full)
+					backupResult.addLastAction(VeeamBackupLastActionObject(0,"Created VMDK / SEQ 1x I/O Write / 1x "+ this.humanReadableFilesize(full.getDataStats().f())))
+
+					snapshot.pointid = "1"
+					backupResult.retentionPush(snapshot)
+					backupResult.addLastAction(VeeamBackupLastActionObject(0,"Created Snapshot  / SEQ 1x I/O Write / 1x  "+ this.humanReadableFilesize(snapshot.getDataStats().f())))
+					
+				} else {
+					backupResult.beginAction(exectime.clone())
+					var latest = backupResult.retentionLatest()
+					
+					var snapshot = VeeamBackupFileObject("delta-0000.vmdk",VeeamBackupFileNullObject(),"P",backupConfiguration.getIncrementalDataStats(exectime.clone()),exectime.clone(),exectime.clone())
+					snapshot.parent = latest.parent
+					
+					backupResult.retentionPush(snapshot)
+					backupResult.addLastAction(VeeamBackupLastActionObject(0,"Created Snapshot  / SEQ 1x I/O Write / 1x "+ this.humanReadableFilesize(snapshot.getDataStats().f())))
+					
+					this.mergeSnap(backupResult,backupConfiguration,exectime.clone())
+				}
+				this.worstCase(backupConfiguration,backupResult,exectime.clone())
+			}	
+		} else {
 			this.debugln("unsupported main style "+backupConfiguration.style,1)
 		}
 		return backupResult
