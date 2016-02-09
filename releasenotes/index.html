@@ -27,11 +27,11 @@
 </div>
 <script>
 
-$.get( "release-notes.md", function( data ) {
+$.get( "README.md", function( data ) {
   $("#notes").html(  markdown.toHTML(data) );
-}).fail(function() { $("#notes").html("<p>Something went wrong while fetching the release-notes, you can also find them on <a href='https://github.com/tdewin/rps/blob/master/releasenotes/release-notes.md'>github</a></p>")});
+}).fail(function() { $("#notes").html("<p>Something went wrong while fetching the release-notes, you can also find them on <a href='https://github.com/tdewin/rps/blob/master/releasenotes/README.md'>github</a></p>")});
 
 </script>
-<p>Generated from <a href="release-notes.md">release-notes.md</a> with <a href="https://github.com/evilstreak/markdown-js">Markdown-js</a> </p>
+<p>Generated from <a href="README.md">/releasenotes/README.md</a> with <a href="https://github.com/evilstreak/markdown-js">Markdown-js</a> </p>
 </body>
 </html>
