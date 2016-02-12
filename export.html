@@ -174,7 +174,7 @@ function scenarios()
 	scenarioObj.GFS = {"W":6,"M":12,"Q":8,"Y":3}
 	scenariosLocal[scenarioObj.name] = scenarioObj
 	
-	scenarioObj = new scenario("Replica",4)
+	scenarioObj = new scenario("VMware Replica",4)
 	scenarioObj.retention = 7
 	scenariosLocal[scenarioObj.name] = scenarioObj
 	
@@ -1346,9 +1346,11 @@ $( document ).ready(function() {
 	
 	scenariosSelect.change(function() {
 		selectScenario(false)
+		rpcheckquick()
 	})
 	$("#idStyle").change(function() {
 		showInputsWithDefaults($("#idStyle option:selected").val(),false)
+		rpcheckquick()
 	})
 	if("dev" in getmap)
 	{
@@ -1543,13 +1545,21 @@ function gbcheck(jobject)
 	} 
 	else if(!(/^([0-9]+)$/.test(data))) { var val = data.replace(/[^0-9.]+/g,""); jqo.val((val == "")?1000:Math.ceil(val)) }
 }
+function rpcheckquick() {
+	rpcheck(document.getElementById('idRP'),14)
+}
 function rpcheck(jobject,defaultval) {
+	var gsv = GUIStateVariables()
+	var style = gsv.mappings["style"].convert()
+	
 	var jqo = $(jobject)
 	var data = jqo.val();
+	var newdata = data
+	
 	var multi={d:1,w:7,m:31,q:92,y:365};
 	var multitest = /^([0-9.]+)[ ]?([dwmqy])$/i.exec(data); 
 	if(multitest) { 
-		var gsv = GUIStateVariables()
+		
 		var interval = gsv.mappings["interval"].convert()
 		var intervalmulti = 1
 		if(interval.hours !== undefined)
@@ -1559,9 +1569,15 @@ function rpcheck(jobject,defaultval) {
 		var c = Math.ceil
 		var calc = c(parseFloat(multitest[1])*multi[multitest[2].toLowerCase()]*intervalmulti)
 		
-		jqo.val(calc) 
+		newdata = calc 
 	}
-	else if(!(/^([0-9]+)$/.test(data))) { var val = data.replace(/[^0-9.]+/g,""); jqo.val((val == "")?defaultval:Math.ceil(val)) }
+	else if(!(/^([0-9]+)$/.test(data))) { var newdata = data.replace(/[^0-9.]+/g,"");newdata=((newdata == "")?defaultval:Math.ceil(newdata)) }
+	
+	if(style == 4 && newdata > 28) {
+		newdata = 28
+	}
+	
+	jqo.val(newdata)
 }
 
 </script>
@@ -1601,11 +1617,11 @@ RPS heavily relies on some opensource <a href="#" onclick="showJS();return false
 		<h2>Configuration</h2>
 		<table class="inputTable">
 		<tr><td class="fixwidth">Style</td><td class="fixwidth" colspan="2">
-			<select id="idStyle" class="alignwidth">
+			<select id="idStyle" class="alignwidth" >
 				<option value="1" >Incremental</option>
 				<option value="2" >Reverse</option>
 				<option value="3" >Backup Copy Job</option>
-				<option value="4" >Replica</option>
+				<option value="4" >VMware Replica</option>
 			</select>
 		</td><td></td></tr>
 		<tr><td>Used Size GB</td><td colspan="2"><input class="alignwidth" type="text" id="idData" value="1000" onchange="gbcheck(this);return false" ></input></td>
@@ -1649,23 +1665,23 @@ RPS heavily relies on some opensource <a href="#" onclick="showJS();return false
 			$step=5;$min=20;$max=100;(0..(($max-$min)/$step)) | % { ($_*$step)+$min } | % { write-host ("<option value=""{0}"">$_% (100GB > {0}GB)</option>" -f $_) } 
 			-->
 			<select id="idCompression" class="alignwidth">
-				<option value="20">20% (100GB > 20GB)</option>
-				<option value="25">25% (100GB > 25GB)</option>
-				<option value="30">30% (100GB > 30GB)</option>
-				<option value="35">35% (100GB > 35GB)</option>
-				<option value="40">40% (100GB > 40GB) Optimistic</option>
-				<option value="45">45% (100GB > 45GB)</option>
-				<option value="50">50% (100GB > 50GB) Conservative</option>
-				<option value="55">55% (100GB > 55GB)</option>
-				<option value="60">60% (100GB > 60GB)</option>
-				<option value="65">65% (100GB > 65GB)</option>
-				<option value="70">70% (100GB > 70GB)</option>
-				<option value="75">75% (100GB > 75GB)</option>
-				<option value="80">80% (100GB > 80GB)</option>
-				<option value="85">85% (100GB > 85GB)</option>
-				<option value="90">90% (100GB > 90GB)</option>
-				<option value="95">95% (100GB > 95GB)</option>
-				<option value="100">100% (100GB > 100GB) No Compression</option>
+				<option value="20">20% (100GB > 20GB) 5x</option>
+				<option value="25">25% (100GB > 25GB) 4x</option>
+				<option value="30">30% (100GB > 30GB) 3.3x</option>
+				<option value="35">35% (100GB > 35GB) 2.8x</option>
+				<option value="40">40% (100GB > 40GB) 2.5x Optimistic</option>
+				<option value="45">45% (100GB > 45GB) 2.2x </option>
+				<option value="50">50% (100GB > 50GB) 2x Conservative</option>
+				<option value="55">55% (100GB > 55GB) 1.8x</option>
+				<option value="60">60% (100GB > 60GB) 1.6x</option>
+				<option value="65">65% (100GB > 65GB) 1.5x</option>
+				<option value="70">70% (100GB > 70GB) 1.4x</option>
+				<option value="75">75% (100GB > 75GB) 1.3x</option>
+				<option value="80">80% (100GB > 80GB) 1.25x </option>
+				<option value="85">85% (100GB > 85GB) 1.15x</option>
+				<option value="90">90% (100GB > 90GB) 1.1x</option>
+				<option value="95">95% (100GB > 95GB) 1.05x</option>
+				<option value="100">100% (100GB > 100GB) 1x No Compression</option>
 			</select>
 		</td>
 		<td><img src="rpsimg/help.png"  class="cursorPointer" onclick="showHelp('Data Reduction',['This parameter defines how much data will be left after data reduction (mainly compression). The parameter is a factor of the original data. For example, if you select 45% and the data set is 1TB, then the resulting full backup will be 450GB (Source Data * Data Reduction Factor in Percentages = Full Backup). The lower the percentage, the smaller the backup. So a lower percentage means a more aggressive compression value. If you want to disable compression, choose 100%. ','If you prefer a reduction factor, for example 2:1, you can easily calculate the input parameter by dividing 100 by the compression factor 2, which results in 50% (100/2). A compression factor of 3:1 would be 100/3 = 33% =~ 35%.','If you prefer a discount factor (like with sales), you can subtract your factor from 100%. For example, if you want -40%, the input factor would be 100-40%=60%.' ]);return false;"/></td>
@@ -1942,7 +1958,7 @@ RPS heavily relies on some opensource <a href="#" onclick="showJS();return false
 			<input type="checkbox" id="idShowCanvas" onchange="return toggleCanvas()"/>Canvas (experimental)
 		</td>
 		<td style="width:420px;text-align:right;">
-			<input  type="button" value="Simulate" style="width:150px;font-size:14px;background-color:green;color:white;border:1px solid black;" onClick="simulate();return false;">
+			<input  type="button" value="Simulate" style="width:150px;font-size:14px;background-color:green;color:white;border:1px solid black;" onClick="rpcheckquick();simulate();return false;">
 		</td>
 		</tr>
 		<tr id="idExportTR" style="display:none;">

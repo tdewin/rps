@@ -37,6 +37,7 @@ VeeamBackupConfiguration:
 	style = 1 = incremental
 	style = 2 = reverse incremental
 	style = 3 = backup copy job (with GFS support)
+	style = 4 = VMware Replica 
 	
 	simplePoints = retention points
 	sourceSize = size of the used vmdk
@@ -339,6 +340,8 @@ function VeeamBackupConfigurationObject(style,simplePoints,sourceSize)
 	VeeamBackupConfigurationObj.buckets[3] = {"MAX":(500*tb),"EASER":0.25}
 	VeeamBackupConfigurationObj.buckets[4] = {"MAX":(-1),"EASER":0.10}
 	
+	VeeamBackupConfigurationObj.replicaWorkSpaceMultiPerc = 30
+	
 	//use these function allowing for data grow module to be implemented later
 	VeeamBackupConfigurationObj.getSourceSize = function(calcdate) {
 		var toReturn = this.sourceSize
@@ -537,7 +540,7 @@ function VeeamBackupResultObject()
 	
 	//don't rely on this value unless you execute a recalcpointid
 	VeeamBackupResultObj.newestFull = -1
-	VeeamBackupResultObj.newestSnap = -1
+
 	VeeamBackupResultObj.safeToMerge = 0
 	
 	VeeamBackupResultObj.worstCaseSize = 0
@@ -1261,7 +1264,7 @@ function VeeamPureEngine()
 		{
 			//instant cleanup!
 			backupResult.safeToMerge = 1
-			backupResult.newestSnap = -1
+			
 			disk = ret[0]
 			if (disk.type == "D")
 			{
@@ -1269,12 +1272,9 @@ function VeeamPureEngine()
 					{
 						point = ret[counter]
 						if(point.type == "D" && point == disk) {
-							point.pointid = 0
+							point.pointid = simplepoint
 						} else if (point.type == "P" && point.parent == disk) {
 							point.pointid = simplepoint
-							if(simplepoint > backupResult.newestSnap) {
-								backupResult.newestSnap = simplepoint
-							}
 							simplepoint = simplepoint + 1
 						} else {
 							//garbage in the chain
@@ -1481,23 +1481,31 @@ function VeeamPureEngine()
 	//very unsafe :)
 	PureEngineObj.mergeSnap = function(backupResult,backupConfiguration,mergetime) {
 		this.recalcPointIDs(backupConfiguration,backupResult)
+		var ret = backupResult.retention
+		
 		if(backupResult.safeToMerge) {
-			if(backupResult.newestSnap > backupConfiguration.simplePoints)
+			
+			if(ret[0].pointid > backupConfiguration.simplePoints)
 			{
 				this.debugln("Merging snap",2)
 				
 				var recyclebin = []
 				var newRet = []
-				var ret = backupResult.retention
+				
 				
 				parent = ret.shift()
 				newRet.push(parent)
 				
 				var counter = 0
-				for(;counter < ret.length && ret[counter].pointid > backupConfiguration.simplePoints ;counter = counter +1 )
+				var mergeuntil = (backupConfiguration.simplePoints-1)
+				for(;counter < ret.length && ret[counter].pointid > mergeuntil  ;counter = counter +1 )
 				{
 					recyclebin.push(ret[counter])
 					parent.setDataStats(ret[counter].getDataStats().fullclone())
+					parent.pointid = ret[counter].pointid
+					parent.modifyDate = mergetime.clone()
+					parent.pointDate = ret[counter].pointDate.clone()
+					backupResult.addLastAction(VeeamBackupLastActionObject(0,"Commit oldest snapshot to apply retention  RAND 2x I/O Read Snap, Commit VMDK / 2x"+ this.humanReadableFilesize(ret[counter].getDataStats().f())))
 				}
 				for(;counter < ret.length ;counter = counter +1 )
 				{
@@ -1702,29 +1710,34 @@ function VeeamPureEngine()
 	
 	PureEngineObj.workingSpaceBucketCalculation = function(backupConfiguration,backupResult,exectime)
 	{
-		var buckets = backupConfiguration.buckets
-		var sourceData = backupConfiguration.getSourceSize(exectime.clone())
-		var alreadyinbuckets = 0
 		var workSpace = 0
-		
-		for (var b =0;b < buckets.length;b++) {
-			var bucket = buckets[b]
+		if (backupConfiguration.style == 4) {
+			workSpace = backupConfiguration.getSourceSize(exectime.clone())*(backupConfiguration.replicaWorkSpaceMultiPerc/100)
+		} else {
+			var buckets = backupConfiguration.buckets
+			var sourceData = backupConfiguration.getSourceSize(exectime.clone())
+			var alreadyinbuckets = 0
 			
 			
-			var inthisbucket = sourceData - alreadyinbuckets 
-			if(bucket.MAX != -1 && sourceData > bucket.MAX)
-			{
-				inthisbucket = bucket.MAX - alreadyinbuckets 
+			for (var b =0;b < buckets.length;b++) {
+				var bucket = buckets[b]
+				
+				
+				var inthisbucket = sourceData - alreadyinbuckets 
+				if(bucket.MAX != -1 && sourceData > bucket.MAX)
+				{
+					inthisbucket = bucket.MAX - alreadyinbuckets 
+				}
+				//should not happen
+				if(inthisbucket < 0) { inthisbucket = 0 }
+				this.debugln("In this bucket "+inthisbucket+" going easy on it with : "+bucket.EASER,4)
+				workSpace = workSpace+ (inthisbucket*(backupConfiguration.compression/100)*bucket.EASER)
+				
+				
+				alreadyinbuckets = alreadyinbuckets + inthisbucket
 			}
-			//should not happen
-			if(inthisbucket < 0) { inthisbucket = 0 }
-			this.debugln("In this bucket "+inthisbucket+" going easy on it with : "+bucket.EASER,4)
-			workSpace = workSpace+ (inthisbucket*(backupConfiguration.compression/100)*bucket.EASER)
-			
-			
-			alreadyinbuckets = alreadyinbuckets + inthisbucket
+			this.debugln("---",4)
 		}
-		this.debugln("---",4)
 		return workSpace
 	}
 	PureEngineObj.worstCase = function(backupConfiguration,backupResult,exectime)
@@ -2170,35 +2183,42 @@ function VeeamPureEngine()
 			}
 		}
 		else if (backupConfiguration.style == 4) {			
+			
 			for(;exectime.isBefore(halttime);exectime = exectime.add(steptime))
 			{
+				var parent
 				if(backupResult.retention.length == 0)
 				{
 					backupResult.beginAction(exectime.clone())
-					var full= VeeamBackupFileObject("vmdisk.vmdk",VeeamBackupFileNullObject(),"D",backupConfiguration.getFullDataStats(exectime.clone()),exectime.clone(),exectime.clone())
-					var snapshot = VeeamBackupFileObject("delta-0000.vmdk",VeeamBackupFileNullObject(),"P",backupConfiguration.getIncrementalDataStats(exectime.clone()),exectime.clone(),exectime.clone())
-					snapshot.parent = full
-					
-					full.pointid = "0"
-					backupResult.retentionPush(full)
-					backupResult.addLastAction(VeeamBackupLastActionObject(0,"Created VMDK / SEQ 1x I/O Write / 1x "+ this.humanReadableFilesize(full.getDataStats().f())))
-
-					snapshot.pointid = "1"
-					backupResult.retentionPush(snapshot)
-					backupResult.addLastAction(VeeamBackupLastActionObject(0,"Created Snapshot  / SEQ 1x I/O Write / 1x  "+ this.humanReadableFilesize(snapshot.getDataStats().f())))
-					
+					var point= VeeamBackupFileObject("vmdisk.vmdk",VeeamBackupFileNullObject(),"D",backupConfiguration.getFullDataStats(exectime.clone()),exectime.clone(),exectime.clone())
+					point.pointid = "1"
+					backupResult.retentionPush(point)
+					backupResult.addLastAction(VeeamBackupLastActionObject(0,"Created VMDK / SEQ 1x I/O Write / 1x "+ this.humanReadableFilesize(point.getDataStats().f())))
+					parent = point
 				} else {
 					backupResult.beginAction(exectime.clone())
-					var latest = backupResult.retentionLatest()
+					var latest = backupResult.retentionPop()
 					
-					var snapshot = VeeamBackupFileObject("delta-0000.vmdk",VeeamBackupFileNullObject(),"P",backupConfiguration.getIncrementalDataStats(exectime.clone()),exectime.clone(),exectime.clone())
-					snapshot.parent = latest.parent
-					
-					backupResult.retentionPush(snapshot)
-					backupResult.addLastAction(VeeamBackupLastActionObject(0,"Created Snapshot  / SEQ 1x I/O Write / 1x "+ this.humanReadableFilesize(snapshot.getDataStats().f())))
-					
-					this.mergeSnap(backupResult,backupConfiguration,exectime.clone())
+					if (latest.pointid == "*") {
+							backupResult.addLastAction(VeeamBackupLastActionObject(0,"Create Temporary Snapshot"))
+							var point = VeeamBackupFileObject("delta-0000.vmdk",VeeamBackupFileNullObject(),"P",backupConfiguration.getIncrementalDataStats(exectime.clone()),exectime.clone(),exectime.clone())
+							point.parent = latest.parent
+							parent = point.parent
+							backupResult.retentionPush(point)
+							backupResult.addLastAction(VeeamBackupLastActionObject(0,"Uploaded new delta disk  / SEQ 1x I/O Write / 1x "+ this.humanReadableFilesize(point.getDataStats().f())))
+							backupResult.addLastAction(VeeamBackupLastActionObject(0,"Remove Temporary Snapshot"))
+							this.mergeSnap(backupResult,backupConfiguration,exectime.clone())		
+					}
 				}
+				
+				//protective snapshot (with empty delta)
+				var snapshot = VeeamBackupFileObject("delta-0000.vmdk",VeeamBackupFileNullObject(),"P",VeeamBackupDataStats(0,0,100,100,100),exectime.clone(),exectime.clone())
+				snapshot.pointid = "*"
+				snapshot.parent = parent
+				backupResult.retentionPush(snapshot)
+				backupResult.addLastAction(VeeamBackupLastActionObject(0,"Snapshot created (delta for protection) "+ this.humanReadableFilesize(snapshot.getDataStats().f())))
+				
+				
 				this.worstCase(backupConfiguration,backupResult,exectime.clone())
 			}	
 		} else {
