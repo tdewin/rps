@@ -340,7 +340,7 @@ function VeeamBackupConfigurationObject(style,simplePoints,sourceSize)
 	VeeamBackupConfigurationObj.buckets[3] = {"MAX":(500*tb),"EASER":0.25}
 	VeeamBackupConfigurationObj.buckets[4] = {"MAX":(-1),"EASER":0.10}
 	
-	VeeamBackupConfigurationObj.replicaWorkSpaceMultiPerc = 30
+	VeeamBackupConfigurationObj.replicaWorkSpaceMultiPerc = 3
 	
 	//use these function allowing for data grow module to be implemented later
 	VeeamBackupConfigurationObj.getSourceSize = function(calcdate) {
@@ -1711,33 +1711,45 @@ function VeeamPureEngine()
 	PureEngineObj.workingSpaceBucketCalculation = function(backupConfiguration,backupResult,exectime)
 	{
 		var workSpace = 0
+		
+		var buckets = backupConfiguration.buckets
+		var sourceData = backupConfiguration.getSourceSize(exectime.clone())
+		var alreadyinbuckets = 0
+		var lcompression = backupConfiguration.compression
+		
 		if (backupConfiguration.style == 4) {
-			workSpace = backupConfiguration.getSourceSize(exectime.clone())*(backupConfiguration.replicaWorkSpaceMultiPerc/100)
-		} else {
-			var buckets = backupConfiguration.buckets
-			var sourceData = backupConfiguration.getSourceSize(exectime.clone())
-			var alreadyinbuckets = 0
+			cr = backupConfiguration.changeRate
+			multi = backupConfiguration.replicaWorkSpaceMultiPerc
 			
-			
-			for (var b =0;b < buckets.length;b++) {
-				var bucket = buckets[b]
-				
-				
-				var inthisbucket = sourceData - alreadyinbuckets 
-				if(bucket.MAX != -1 && sourceData > bucket.MAX)
-				{
-					inthisbucket = bucket.MAX - alreadyinbuckets 
-				}
-				//should not happen
-				if(inthisbucket < 0) { inthisbucket = 0 }
-				this.debugln("In this bucket "+inthisbucket+" going easy on it with : "+bucket.EASER,4)
-				workSpace = workSpace+ (inthisbucket*(backupConfiguration.compression/100)*bucket.EASER)
-				
-				
-				alreadyinbuckets = alreadyinbuckets + inthisbucket
+			realmulti = cr*multi 
+			if (realmulti > 100) {
+				realmulti = 100
 			}
-			this.debugln("---",4)
+			
+			lcompression = 100
+			sourceData = sourceData*(realmulti/100)
+		} 
+		
+		
+		for (var b =0;b < buckets.length;b++) {
+			var bucket = buckets[b]
+			
+			
+			var inthisbucket = sourceData - alreadyinbuckets 
+			if(bucket.MAX != -1 && sourceData > bucket.MAX)
+			{
+				inthisbucket = bucket.MAX - alreadyinbuckets 
+			}
+			//should not happen
+			if(inthisbucket < 0) { inthisbucket = 0 }
+			this.debugln("In this bucket "+inthisbucket+" going easy on it with : "+bucket.EASER,5)
+			workSpace = workSpace+ (inthisbucket*(lcompression/100)*bucket.EASER)
+			
+			
+			alreadyinbuckets = alreadyinbuckets + inthisbucket
 		}
+		this.debugln("---",5)
+		
 		return workSpace
 	}
 	PureEngineObj.worstCase = function(backupConfiguration,backupResult,exectime)

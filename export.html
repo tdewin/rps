@@ -698,10 +698,14 @@ function renderCanvas(backupResult,showWorstCase)
 	var retentionspace = charwidth*prelogicvar.sretstring
 	
 	ctx = c.getContext("2d");
-	ctx.clearRect(0, 0, c.width, c.height);
+	
 	
 	c.width = margin*2+retentionspace+fullwidth+350
 	c.height = files.length*(fileheight+margin)+totalsum+margindoc*2
+	
+	ctx.clearRect(0, 0, c.width, c.height);
+	ctx.fillStyle="#ffffff";
+	ctx.fillRect(0, 0, c.width, c.height);
 	
 	var t = function(ctx,txt,x,y,color) {
 		var fs = 16
