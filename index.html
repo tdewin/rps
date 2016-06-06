@@ -22,6 +22,7 @@
 <script src="moment.min.js"></script>
 <script src="filesize-mod.js"></script>
 <script src="pureengine.js"></script>
+<!--<script src="beta/pureengine.js"></script>-->
 
 <script>
 function showInputs(style)
@@ -118,6 +119,7 @@ function scenario(name,style)
 	this.activeMonthlyInc = [0,0,0,0,0,0,0,0,0,0,0,0]
 	this.activeMonthlyRev = [0,0,0,0,0,0,0,0,0,0,0,0]
 	this.GFS = {"W":0,"M":0,"Q":0,"Y":0}
+	this.GFSActiveFull = 0
 	this.dataGrowth = 0
 	this.dataGrowthRate = 10
 	this.dataGrowthYear = 1
@@ -167,10 +169,15 @@ function scenarios()
 	scenarioObj.retention = 7
 	scenariosLocal[scenarioObj.name] = scenarioObj
 	
-	scenarioObj = new scenario("Backup Copy Job GFS 4W/4M/4Q/1Y",3)
+	scenarioObj = new scenario("Backup Copy Job GFS 6W/12M/8Q/3Y",3)
 	scenarioObj.retention = 7
-	scenarioObj.GFS = {"W":4,"M":4,"Q":4,"Y":1}
+	scenarioObj.GFS = {"W":6,"M":12,"Q":8,"Y":3}
 	scenariosLocal[scenarioObj.name] = scenarioObj
+	
+	scenarioObj = new scenario("VMware Replica",4)
+	scenarioObj.retention = 7
+	scenariosLocal[scenarioObj.name] = scenarioObj
+	
 	
 	return scenariosLocal
 }
@@ -493,8 +500,34 @@ function mappings()
 	mappingsLocal[mappingObj.variable] = mappingObj	
 	
 	
+	
+	mappingObj = new mapping("#idGFSActiveFull","GFSActiveFull",3)
+	mappingObj.urivar = "gaf"
+	mappingObj.guival = function() { return ($(this.id).is(':checked')?1:0) }
+	mappingObj.setDefault = function() {
+		var scenario = mappingsLocal["scenario"].convert()
+		var value = scenario[this.variable]
+		var jqselect = this.id
+		
+		if(value == 1)
+		{
+			$(jqselect).prop("checked",true)
+		}
+		else 
+		{
+			$(jqselect).prop("checked",false)
+		}
+	}
+	mappingObj.convert = function() {
+		return ($(this.id).is(':checked')?1:0)
+	}
+	mappingsLocal[mappingObj.variable] = mappingObj	
+	
+	
+	
+	
 	mappingObj = new mapping("idGFS","GFS",3)
-	mappingObj.univar = "g"
+	mappingObj.urivar = "g"
 	mappingObj.getURIVar = function() {
 		var tmpGFS = [0,0,0,0]
 		$.each({0:"W",1:"M",2:"Q",3:"Y"}, function (key,val) {
@@ -619,7 +652,7 @@ function humanReadableFilesizeWithForce(valueIn,e)
 	}
 	return filesize(valueIn, {base: 2,round: 2,forcesuffix:forcesuffix})
 }
-function renderCanvas(backupResult)
+function renderCanvas(backupResult,showWorstCase)
 {
 	var jd = $("#idDivResultCanvas")
 	jd.hide()
@@ -628,14 +661,23 @@ function renderCanvas(backupResult)
 	var imagearrowdown = document.getElementById("idimagearrowdown")
 	var imagearrowup = document.getElementById("idimagearrowup")
 	
+	
 	var files = backupResult.getWorstCaseFiles()
+	var filesizeTotalRaw =  backupResult.worstCaseSize
+	var workingSpaceRaw = backupResult.worstCaseDayWorkingSpace
+	var grandTotalRaw =  backupResult.worstCaseSizeWithWorkingSpace
+	
+	if(!showWorstCase) {
+		files = backupResult.getFiles()
+		filesizeTotalRaw =  backupResult.totalSize
+		workingSpaceRaw = backupResult.workingSpace
+		grandTotalRaw =  backupResult.totalSize+backupResult.workingSpace
+	}
 	
 	var prelogicvar = prelogic(files)
 	var unifiedeval = prelogicvar.unifiedeval
 	
-	var filesizeTotalRaw =  backupResult.worstCaseSize
-	var workingSpaceRaw = backupResult.worstCaseDayWorkingSpace
-	var grandTotalRaw =  backupResult.worstCaseSizeWithWorkingSpace
+
 	var filesizeTotal =  humanReadableFilesizeWithForce(filesizeTotalRaw,unifiedeval)
 	var workingSpace = humanReadableFilesizeWithForce(workingSpaceRaw,unifiedeval)
 	var grandTotal =  humanReadableFilesizeWithForce(grandTotalRaw,unifiedeval)
@@ -656,10 +698,14 @@ function renderCanvas(backupResult)
 	var retentionspace = charwidth*prelogicvar.sretstring
 	
 	ctx = c.getContext("2d");
-	ctx.clearRect(0, 0, c.width, c.height);
+	
 	
 	c.width = margin*2+retentionspace+fullwidth+350
 	c.height = files.length*(fileheight+margin)+totalsum+margindoc*2
+	
+	ctx.clearRect(0, 0, c.width, c.height);
+	ctx.fillStyle="#ffffff";
+	ctx.fillRect(0, 0, c.width, c.height);
 	
 	var t = function(ctx,txt,x,y,color) {
 		var fs = 16
@@ -673,7 +719,7 @@ function renderCanvas(backupResult)
 		ctx.fillText(txt,x,y+fs);
 	}
 	
-	//thrust me, I'm an engineer it took hours calculating an arrow and rectangles, don't try to understand unless you really want to
+	
 	var link = function(ctx,x,y,up) {
 		if(up) {
 			ctx.drawImage(imagearrowup,x,y);
@@ -687,15 +733,15 @@ function renderCanvas(backupResult)
 	$.each(files,function(i,f) {
 		var x = margindoc+retentionspace
 		var y = margindoc+(i*(fileheight+margin))
-		var width = (f.isVBK()?fullwidth:incwidth)
+		var width = (f.isFull()?fullwidth:incwidth)
 		var color = ((f.type == "F")?colactive:((f.type == "G")?colgfs:colsyn))
 
 		t(ctx,f.toSimpleRetentionString(),margindoc,y)
 		t(ctx,f.file,margindoc+retentionspace+fullwidth+10,y)
 		t(ctx,humanReadableFilesizeWithForce(f.getDataStats().f(),unifiedeval),margindoc+retentionspace+fullwidth+200,y)
 		
-		if(!f.isVBK()) {
-			link(ctx,x,y,(f.type == "I")?1:0)
+		if(!f.isFull()) {
+			link(ctx,x,y,(f.type == "I"||f.type == "P")?1:0)
 			x = x+triangleLinkSize
 		}
 		
@@ -772,7 +818,7 @@ function prelogic(files) {
 		{
 			p.unifiedeval = testeval
 		}
-		if(val.isVBK()) {
+		if(val.isFull()) {
 			p.full += 1
 		} else { 
 			p.inc += 1 
@@ -856,13 +902,14 @@ function renderGFX(backupResult,showWorstCase)
 	table.td("Modify Date").attr("class","widthdate")
 	table.td("Point Date").attr("class","widthdate")
 	
+	var showrealname = ($("#idShowRealName").val() == "1")
 	for(var counter=0;counter < files.length;counter = counter + 1 )
 	{
 		var file = files[counter]
 		table.tr().td(file.toRetentionString())
 		var fs = file.getDataStats().f()
 		
-		if(file.isVBK())
+		if(file.isFull())
 		{
 			fulls++
 			if(fs > fullmax) { fullmax = fs }
@@ -892,13 +939,22 @@ function renderGFX(backupResult,showWorstCase)
 			{
 				table.img("rpsimg/inc-up-img2.png")
 			}
+			else if(file.type == "P")
+			{
+				table.img("rpsimg/inc-up-img2.png")
+			}
 			else
 			{
 				table.img("rpsimg/rev-down-img2.png")
 			}
 		}
 		var hrfsize = humanReadableFilesizeWithForce(file.getDataStats().f(),unifiedeval)
-		table.td(file.file).a(hrfsize).attr("onClick","showVisualData(["+file.getDataStats().sd()+","+file.getDataStats().f()+"]);return false;").td(file.modifyDate.format("YYYY-MM-DD dd HH")).td(file.pointDate.format("YYYY-MM-DD dd HH"))		
+		
+		var fname = file.file
+		if(showrealname) {
+			fname = file.realFileNameStr()
+		}
+		table.td(fname).a(hrfsize).attr("onClick","showVisualData(["+file.getDataStats().sd()+","+file.getDataStats().trans()+"]);return false;").td(file.modifyDate.format("YYYY-MM-DD dd HH")).td(file.pointDate.format("YYYY-MM-DD dd HH"))		
 	}
 	table.tr().td("").td("").td("").td(filesizeTotal).attr("class","totalTopLine").td("").td("")
 	table.tr().td("").td("").td("Work Space").attr("class","alert").td("+"+workingSpace).attr("class","alert").td("").td("")
@@ -1050,6 +1106,23 @@ function simulate()
 	//var start = gsv.mappings["start"].convert()
 	var start = moment().add({days:1}).startOf('day').add({hours:22});
 	
+	//manual override
+	var ttconvert = function (val) {
+			var ret = 0
+			if (val != "0" && val != "") {
+				convert = moment(val)
+				if (convert.year() > 2000 && convert.year() < 2050) {
+					return convert
+				}
+			}
+			return ret
+	}
+	manStart = ttconvert($('#idManStart').val())
+	manStop = ttconvert($('#idManStop').val())
+	if (manStart!= 0) {
+		start = manStart
+	}
+	
 	
 	var datagrowthrate = gsv.mappings["dataGrowthRate"].convert()
 	var datagrowthyears = gsv.mappings["dataGrowthYear"].convert()
@@ -1060,20 +1133,36 @@ function simulate()
 		backupConfiguration.simpleYearGrowth = datagrowthrate
 	} else { backupConfiguration.simpleYearGrowth = 0 }
 	var exporturl = getExportStr()
+	
 	if(!showmehow)
 	{
 		gsv.backupConfiguration = backupConfiguration
 		gsv.backupResult = backupResult
+		gsv.showWorstCase = true
+
+	
+		var end = start.clone()
 		
 
-		
-		eval($("#idInput").val());
-		var end = start.clone().add(datagrowthyears,'years')
-		if(!datagrowthenabled)
-		{
-			end = gsv.pureEngine.predictEndDate(backupConfiguration,start.clone(),interval)
+		var showlatest = $('#idShowLatest').val()
+		if(showlatest == "1") {
+			gsv.showWorstCase = false
 		}
 		
+		
+		
+		if(manStop != 0) {
+			end = manStop
+		} else {
+			end = start.clone().add(datagrowthyears,'years')
+			if(!datagrowthenabled)
+			{
+				end = gsv.pureEngine.predictEndDate(backupConfiguration,start.clone(),interval)
+			}
+		} 
+		
+		//alert("Start :: "+start.format()+" End :: "+end.format())
+		eval($("#idInput").val());
 		gsv.pureEngine.debugln("engine start",1)
 		gsv.pureEngine.run(backupConfiguration,backupResult,start,interval,end)
 		gsv.pureEngine.debugln("engine ended",1)
@@ -1081,11 +1170,11 @@ function simulate()
 		renderText(backupResult)
 		if(canvasrendering)
 		{
-			renderCanvas(backupResult)
+			renderCanvas(backupResult,gsv.showWorstCase)
 		}
 		else
 		{
-			renderGFX(backupResult,true)
+			renderGFX(backupResult,gsv.showWorstCase)
 		}
 		
 
@@ -1182,7 +1271,7 @@ $( document ).ready(function() {
 	checkURIParameter(uriscenario,getmap,"i","interval",0)
 	checkURIParameter(uriscenario,getmap,"m","style",function(intcheck,scenario) {
 		var toReturn = parseInt(intcheck); 
-		if(isNaN(toReturn) || toReturn < 1 || toReturn > 3) { 
+		if(isNaN(toReturn) || toReturn < 1 || toReturn > 4) { 
 			toReturn = 1 
 		};
 		return toReturn
@@ -1221,6 +1310,7 @@ $( document ).ready(function() {
 	checkURIParameter(uriscenario,getmap,"dgy","dataGrowthYear",floatfunction)
 	checkURIParameter(uriscenario,getmap,"dgr","dataGrowthRate",intfunction)
 
+	checkURIParameter(uriscenario,getmap,"gaf","GFSActiveFull",intfunction)
 	
 	//legacy parameters
 	checkURIParameter(uriscenario,getmap,"used","size",intfunction)
@@ -1260,12 +1350,23 @@ $( document ).ready(function() {
 	
 	scenariosSelect.change(function() {
 		selectScenario(false)
+		rpcheckquick()
 	})
 	$("#idStyle").change(function() {
 		showInputsWithDefaults($("#idStyle option:selected").val(),false)
+		rpcheckquick()
 	})
 	if("dev" in getmap)
 	{
+		$('#idDivDev').show();
+	}
+	if("reversesim" in getmap) {
+		var m = moment().hour(8).minute(0).second(0);
+		var stop = m.format("YYYY-MM-DD HH:mm:ss");
+		var start = m.subtract(3, 'years').hour(20).format("YYYY-MM-DD HH:mm:ss");
+		$('#idManStart').val(start)
+		$('#idManStop').val(stop)
+		$('#idShowLatest').val(1)
 		$('#idDivDev').show();
 	}
 	if("devline" in getmap)
@@ -1448,13 +1549,21 @@ function gbcheck(jobject)
 	} 
 	else if(!(/^([0-9]+)$/.test(data))) { var val = data.replace(/[^0-9.]+/g,""); jqo.val((val == "")?1000:Math.ceil(val)) }
 }
+function rpcheckquick() {
+	rpcheck(document.getElementById('idRP'),14)
+}
 function rpcheck(jobject,defaultval) {
+	var gsv = GUIStateVariables()
+	var style = gsv.mappings["style"].convert()
+	
 	var jqo = $(jobject)
 	var data = jqo.val();
+	var newdata = data
+	
 	var multi={d:1,w:7,m:31,q:92,y:365};
-	var multitest = /^([0-9.]+)[ ]?([dwmqy])?$/i.exec(data); 
+	var multitest = /^([0-9.]+)[ ]?([dwmqy])$/i.exec(data); 
 	if(multitest) { 
-		var gsv = GUIStateVariables()
+		
 		var interval = gsv.mappings["interval"].convert()
 		var intervalmulti = 1
 		if(interval.hours !== undefined)
@@ -1464,9 +1573,15 @@ function rpcheck(jobject,defaultval) {
 		var c = Math.ceil
 		var calc = c(parseFloat(multitest[1])*multi[multitest[2].toLowerCase()]*intervalmulti)
 		
-		jqo.val(calc) 
+		newdata = calc 
 	}
-	else if(!(/^([0-9]+)$/.test(data))) { var val = data.replace(/[^0-9.]+/g,""); jqo.val((val == "")?defaultval:Math.ceil(val)) }
+	else if(!(/^([0-9]+)$/.test(data))) { var newdata = data.replace(/[^0-9.]+/g,"");newdata=((newdata == "")?defaultval:Math.ceil(newdata)) }
+	
+	if(style == 4 && newdata > 28) {
+		newdata = 28
+	}
+	
+	jqo.val(newdata)
 }
 
 </script>
@@ -1477,10 +1592,16 @@ function rpcheck(jobject,defaultval) {
 <textarea id="idInput" rows="10" cols="150" ></textarea><br>
 <textarea id="idConsole" rows="10" cols="150" ></textarea><br>
 <input type="button" value="URL >>" onclick="saveStr()" ><input id="idURLStr" size="100"></input><br>
+<table>
+<tr><td>Start</td><td><input id="idManStart" value=""/></td></tr>
+<tr><td>Stop</td><td><input id="idManStop" value="" /></td></tr>
+<tr><td>Show Latest</td><td><input id="idShowLatest" value="0" /></td></tr>
+<tr><td>Show RealName</td><td><input id="idShowRealName" value="0" /></td></tr>
+</table>
 </div>
 <div id="idreferences">
 <h1>The Restore Point Simulator</h1>
-Current version : <a href="release-notes.txt">0.3.2</a><br> 
+Current version : <a href="/releasenotes/">0.3.3</a><br> 
 Feedback via <a href="https://twitter.com/intent/tweet?screen_name=tdewin" style="text-decoration:none;">@tdewin</a> or on <a href="https://github.com/tdewin/rps/issues">GitHub</a><br>
 RPS heavily relies on some opensource <a href="#" onclick="showJS();return false;">javascript frameworks</a><br>
 </div>
@@ -1500,10 +1621,11 @@ RPS heavily relies on some opensource <a href="#" onclick="showJS();return false
 		<h2>Configuration</h2>
 		<table class="inputTable">
 		<tr><td class="fixwidth">Style</td><td class="fixwidth" colspan="2">
-			<select id="idStyle" class="alignwidth">
+			<select id="idStyle" class="alignwidth" >
 				<option value="1" >Incremental</option>
 				<option value="2" >Reverse</option>
 				<option value="3" >Backup Copy Job</option>
+				<option value="4" >VMware Replica</option>
 			</select>
 		</td><td></td></tr>
 		<tr><td>Used Size GB</td><td colspan="2"><input class="alignwidth" type="text" id="idData" value="1000" onchange="gbcheck(this);return false" ></input></td>
@@ -1547,23 +1669,23 @@ RPS heavily relies on some opensource <a href="#" onclick="showJS();return false
 			$step=5;$min=20;$max=100;(0..(($max-$min)/$step)) | % { ($_*$step)+$min } | % { write-host ("<option value=""{0}"">$_% (100GB > {0}GB)</option>" -f $_) } 
 			-->
 			<select id="idCompression" class="alignwidth">
-				<option value="20">20% (100GB > 20GB)</option>
-				<option value="25">25% (100GB > 25GB)</option>
-				<option value="30">30% (100GB > 30GB)</option>
-				<option value="35">35% (100GB > 35GB)</option>
-				<option value="40">40% (100GB > 40GB) Optimistic</option>
-				<option value="45">45% (100GB > 45GB)</option>
-				<option value="50">50% (100GB > 50GB) Conservative</option>
-				<option value="55">55% (100GB > 55GB)</option>
-				<option value="60">60% (100GB > 60GB)</option>
-				<option value="65">65% (100GB > 65GB)</option>
-				<option value="70">70% (100GB > 70GB)</option>
-				<option value="75">75% (100GB > 75GB)</option>
-				<option value="80">80% (100GB > 80GB)</option>
-				<option value="85">85% (100GB > 85GB)</option>
-				<option value="90">90% (100GB > 90GB)</option>
-				<option value="95">95% (100GB > 95GB)</option>
-				<option value="100">100% (100GB > 100GB) No Compression</option>
+				<option value="20">20% (100GB > 20GB) 5x</option>
+				<option value="25">25% (100GB > 25GB) 4x</option>
+				<option value="30">30% (100GB > 30GB) 3.3x</option>
+				<option value="35">35% (100GB > 35GB) 2.8x</option>
+				<option value="40">40% (100GB > 40GB) 2.5x Optimistic</option>
+				<option value="45">45% (100GB > 45GB) 2.2x </option>
+				<option value="50">50% (100GB > 50GB) 2x Conservative</option>
+				<option value="55">55% (100GB > 55GB) 1.8x</option>
+				<option value="60">60% (100GB > 60GB) 1.6x</option>
+				<option value="65">65% (100GB > 65GB) 1.5x</option>
+				<option value="70">70% (100GB > 70GB) 1.4x</option>
+				<option value="75">75% (100GB > 75GB) 1.3x</option>
+				<option value="80">80% (100GB > 80GB) 1.25x </option>
+				<option value="85">85% (100GB > 85GB) 1.15x</option>
+				<option value="90">90% (100GB > 90GB) 1.1x</option>
+				<option value="95">95% (100GB > 95GB) 1.05x</option>
+				<option value="100">100% (100GB > 100GB) 1x No Compression</option>
 			</select>
 		</td>
 		<td><img src="rpsimg/help.png"  class="cursorPointer" onclick="showHelp('Data Reduction',['This parameter defines how much data will be left after data reduction (mainly compression). The parameter is a factor of the original data. For example, if you select 45% and the data set is 1TB, then the resulting full backup will be 450GB (Source Data * Data Reduction Factor in Percentages = Full Backup). The lower the percentage, the smaller the backup. So a lower percentage means a more aggressive compression value. If you want to disable compression, choose 100%. ','If you prefer a reduction factor, for example 2:1, you can easily calculate the input parameter by dividing 100 by the compression factor 2, which results in 50% (100/2). A compression factor of 3:1 would be 100/3 = 33% =~ 35%.','If you prefer a discount factor (like with sales), you can subtract your factor from 100%. For example, if you want -40%, the input factor would be 100-40%=60%.' ]);return false;"/></td>
@@ -1828,6 +1950,7 @@ RPS heavily relies on some opensource <a href="#" onclick="showJS();return false
 			<tr><td>Monthly</td><td><input class="alignwidth" type="text" id="idGFSM" value="0"></input></td></tr>
 			<tr><td>Quarterly</td><td><input class="alignwidth" type="text" id="idGFSQ" value="0"></input></td></tr>
 			<tr><td>Yearly</td><td><input class="alignwidth" type="text" id="idGFSY" value="0"></input></td></tr>
+			<tr><td><input type="checkbox" id="idGFSActiveFull"/></td><td>Active Full GFS</td></tr>
 		</table>
 </div>
 <div id="idDivRun">
@@ -1839,7 +1962,7 @@ RPS heavily relies on some opensource <a href="#" onclick="showJS();return false
 			<input type="checkbox" id="idShowCanvas" onchange="return toggleCanvas()"/>Canvas (experimental)
 		</td>
 		<td style="width:420px;text-align:right;">
-			<input  type="button" value="Simulate" style="width:150px;font-size:14px;background-color:green;color:white;border:1px solid black;" onClick="simulate();return false;">
+			<input  type="button" value="Simulate" style="width:150px;font-size:14px;background-color:green;color:white;border:1px solid black;" onClick="rpcheckquick();simulate();return false;">
 		</td>
 		</tr>
 		<tr id="idExportTR" style="display:none;">
