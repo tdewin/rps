@@ -1,3 +1,7 @@
+# 0.4:
+- ReFS algorithm
+
+
 # 0.3.3:
 - Active Full on GFS support (v9) feature
 - Replica Support
@@ -31,7 +35,7 @@
 # 0.2.8 :
 - Easing function for working space
 
-# 0.2.7 : 
+# 0.2.7 :
 - Added open source reference
 - Added css style to all items for more unified view
 - Added explanation for events in engine, needs gui

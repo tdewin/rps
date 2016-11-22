@@ -111,6 +111,7 @@ function scenario(name,style)
 	this.style = style
 	this.retention = 14
 	this.size = 1000
+	this.refs = 0
 	this.compression = 50
 	this.changeRate = 10
 	this.synthetic = [0,0,0,0,0,0,0]
@@ -391,8 +392,31 @@ function mappings()
 		}
 	}
 	mappingsLocal[mappingObj.variable] = mappingObj
-		
 	
+
+	//refs
+	mappingObj = new mapping("#idReFSEnabled","refs",0)
+	mappingObj.convert = function() { return $(this.id).is(':checked') }
+	mappingObj.urivar = "re"
+	mappingObj.copySwitch = 1
+	mappingObj.guival = function() {
+		return ($(this.id).is(':checked')?1:0)
+	}
+	mappingObj.setDefault = function() {
+		var scenario = mappingsLocal["scenario"].convert()
+		var value = scenario[this.variable]
+		var jqselect = this.id
+		
+		if(value == 1)
+		{
+			$(jqselect).prop("checked",true)
+		}
+		else 
+		{
+			$(jqselect).prop("checked",false)
+		}
+	}
+	mappingsLocal[mappingObj.variable] = mappingObj
 	
 	var checkboxUncheck = function()
 	{
@@ -924,6 +948,11 @@ function renderGFX(backupResult,showWorstCase)
 				table.img("rpsimg/active.png")
 				
 			}
+			else if (file.type == "L")
+			{
+				table.img("rpsimg/linked.png")
+				//alert(file.getDataStats().refsLinked)
+			}
 			else
 			{
 				table.img("rpsimg/full.png")
@@ -948,7 +977,7 @@ function renderGFX(backupResult,showWorstCase)
 				table.img("rpsimg/rev-down-img2.png")
 			}
 		}
-		var hrfsize = humanReadableFilesizeWithForce(file.getDataStats().f(),unifiedeval)
+		var hrfsize = humanReadableFilesizeWithForce(fs,unifiedeval)
 		
 		var fname = file.file
 		if(showrealname) {
@@ -1094,6 +1123,8 @@ function simulate()
 
 	backupConfiguration["changeRate"] = gsv.mappings["changeRate"].convert()
 	backupConfiguration["compression"] = gsv.mappings["compression"].convert()
+	backupConfiguration["refs"] = gsv.mappings["refs"].convert()
+	
 	
 	$.each(gsv.mappings,function(key,mapping) {
 		if(mapping.applicable == backupstyle)
@@ -1127,6 +1158,8 @@ function simulate()
 	var datagrowthrate = gsv.mappings["dataGrowthRate"].convert()
 	var datagrowthyears = gsv.mappings["dataGrowthYear"].convert()
 	var datagrowthenabled = gsv.mappings["dataGrowth"].convert()
+	
+	
 	
 	if(datagrowthenabled)
 	{
@@ -1311,6 +1344,10 @@ $( document ).ready(function() {
 	checkURIParameter(uriscenario,getmap,"dgr","dataGrowthRate",intfunction)
 
 	checkURIParameter(uriscenario,getmap,"gaf","GFSActiveFull",intfunction)
+	
+	checkURIParameter(uriscenario,getmap,"re","refs",function(enablestring,scenario) {
+		var toReturn = parseInt(enablestring); if(isNaN(toReturn)) { toReturn = 0 };return toReturn
+	})
 	
 	//legacy parameters
 	checkURIParameter(uriscenario,getmap,"used","size",intfunction)
@@ -1601,7 +1638,7 @@ function rpcheck(jobject,defaultval) {
 </div>
 <div id="idreferences">
 <h1>The Restore Point Simulator</h1>
-Current version : <a href="/releasenotes/">0.3.3</a><br> 
+Current version : <a href="/releasenotes/">0.4.0</a><br> 
 Feedback via <a href="https://twitter.com/intent/tweet?screen_name=tdewin" style="text-decoration:none;">@tdewin</a> or on <a href="https://github.com/tdewin/rps/issues">GitHub</a><br>
 RPS heavily relies on some opensource <a href="#" onclick="showJS();return false;">javascript frameworks</a><br>
 </div>
@@ -1844,6 +1881,13 @@ RPS heavily relies on some opensource <a href="#" onclick="showJS();return false
 			</select>
 			</td>
 			<td><img src="rpsimg/help.png"  class="cursorPointer" onclick="showHelp('Time Growth',['This allows you to simulate a continuous data growth on a daily basis. The first parameter defines how long you want to run the simulation. The second parameter defines the yearly data growth in percentages.','Imagine, you have 1000GB of source data and a time growth factor of 10%. If you execute a simulation for 3 years, the data growth will be calculated by using the following formula : 1000*(1+10%)^1095/365 = 1000*1.1^3 = 1000*1.1*1.1*1.1 = 1331GB. You can easily test this by disabling data reduction (select 100%) and selecting reverse incremental.']);return false;"/></td>
+		</tr>
+		<tr>
+			<td>ReFS <input type="checkbox" id="idReFSEnabled"></td>
+			<td>
+				
+			</td>
+			<td></td>
 		</tr>
 		<!--<tr><td>Start Date</td><td>
 			<select id="idStart" class="alignwidth">

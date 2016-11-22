@@ -15,7 +15,7 @@ VeeamBackupFile:
 	type D = vm disk 
 	type P = snapshot
 	
-	fileSize = size of the file in bytes
+	
 	createDate = when is the file originally created
 	modifyDate = when is the file last modified, initially the same as createDate
 	pointDate = which restore point is this file holding
@@ -67,6 +67,13 @@ if (typeof exports === 'object')
 		return VeeamPureEngine()
 	}
 }
+function ReFSLinked(lnkdpt,perct) 
+{
+	return {
+		linkedpoint:lnkdpt,
+		percentagepoint:perct
+	}
+}
 function VeeamBackupDataStats(f,s,c,d,t)
 {
 	return {
@@ -75,14 +82,32 @@ function VeeamBackupDataStats(f,s,c,d,t)
 		compression:c,
 		transferCompression:t,
 		changeRate:d,
-		f:function () { return this.file },
+		refsLinked:0,
+		f:function () { 
+			if (this.refsLinked) {
+				return this.file*(this.refsLinked.percentagepoint/100)
+			} else {
+				return this.file 
+			}
+		},
 		s:function () { return this.source },
 		c:function () { return this.compression },
 		t:function () { return this.transferCompression },
 		d:function () { return this.changeRate },
-		clone:function () { var clone = VeeamBackupDataStats(this.file,this.source,this.compression,this.changeRate,this.transferCompression);return clone  },
+		clone:function () { 
+			var clone = VeeamBackupDataStats(this.file,this.source,this.compression,this.changeRate,this.transferCompression);
+			if(this.refsLinked != 0)
+			{
+				clone.refsLinked = ReFSLinked(this.refsLinked.linkedpoint,this.refsLinked.percentagepoint)
+			}
+			return clone  },
 		fullclone:function () {
-			var clone = VeeamBackupDataStats(this.source*(this.compression/100),this.source,this.compression,100,this.transferCompression);return clone
+			var clone = VeeamBackupDataStats(this.source*(this.compression/100),this.source,this.compression,100,this.transferCompression);
+			if(this.refsLinked != 0)
+			{
+				clone.refsLinked = ReFSLinked(this.refsLinked.linkedpoint,this.refsLinked.percentagepoint)
+			}
+			return clone
 		},
 		sd:function () { return parseInt((this.source*this.changeRate)/100) },
 		trans:function () { return parseInt(((this.source*this.changeRate)/100)*(this.transferCompression/100)) }
@@ -108,8 +133,9 @@ function VeeamBackupFileObjectInheritable(file,parent,type,dataStats,createDate,
 	VeeamBackupFileObj.uid = 0
 	VeeamBackupFileObj.origuid = 0
 	VeeamBackupFileObj.flaggedForDeletion = 0
-	
 
+	
+	VeeamBackupFileObj.recycled = 0
 	
 	if(type != 0 && createDate != 0 && pointDate !=0)
 	{
@@ -122,14 +148,16 @@ function VeeamBackupFileObjectInheritable(file,parent,type,dataStats,createDate,
 	}
 	
 
-	VeeamBackupFileObj.fileSize = dataStats.file
+	//VeeamBackupFileObj.fileSize = dataStats.file
 	VeeamBackupFileObj.dataStats = dataStats
 
 	VeeamBackupFileObj.getDataStats = function() { return this.dataStats }
 	VeeamBackupFileObj.setDataStats = function(dataStatsIn) {
-		this.fileSize = dataStatsIn.file
+		//this.fileSize = dataStatsIn.file
 		this.dataStats = dataStatsIn
 	}
+	
+	
 	
 	VeeamBackupFileObj.pointid = -1
 	VeeamBackupFileObj.flagForKeepId = 0
@@ -155,10 +183,10 @@ function VeeamBackupFileObjectInheritable(file,parent,type,dataStats,createDate,
 		}
 	}
 	VeeamBackupFileObj.isFull = function() {
-		return ($.inArray(this.type,["G","S","F","D"]) != -1)
+		return ($.inArray(this.type,["G","S","F","D","L"]) != -1)
 	}
 	VeeamBackupFileObj.isVBK = function() {
-		return ($.inArray(this.type,["G","S","F"]) != -1)
+		return ($.inArray(this.type,["G","S","F","L"]) != -1)
 	}
 	VeeamBackupFileObj.isMarkedForGFS = function() {
 		return (this.GFSType.length > 0)
@@ -329,6 +357,22 @@ function VeeamBackupConfigurationObject(style,simplePoints,sourceSize)
 	//impact mainly the filesize
 	VeeamBackupConfigurationObj.startDate = 0
 	VeeamBackupConfigurationObj.simpleYearGrowth = 0
+	
+	VeeamBackupConfigurationObj.refs = 0
+	VeeamBackupConfigurationObj.refsdiff = function (childdate,rootdate) {
+		var base = 100
+		if (this.refs == 1) {
+			base = (this.changeRate*2 > 20)?this.changeRate*2:20;
+			
+			
+			//In theory 20% base + 20% added per year (over 4 years it would mean complete data refresh)
+			var daydiff = childdate.diff(rootdate, 'days')*1.0
+			daydiff = (daydiff < 0)?-daydiff:daydiff;
+			base = base + parseInt(base*(daydiff/365.0))
+			if (base > 100) { base = 100 }
+		}
+		return base 
+	}
 	
 	
 	var tb = (1024*1024*1024*1024)
@@ -1325,7 +1369,7 @@ function VeeamPureEngine()
 				return shouldBeKept
 			}
 			
-			
+		
 			for(var counter=ret.length-1;counter >= 0;counter = counter - 1 )
 			{
 				var point = ret[counter]
@@ -1389,6 +1433,7 @@ function VeeamPureEngine()
 					}
 				}
 				
+
 				simplepoint = simplepoint + 1
 			}
 			
@@ -1421,8 +1466,59 @@ function VeeamPureEngine()
 	}
 
 
-
-
+	PureEngineObj.findUndeletedParent = function(checkpoint,fullonid) {
+		//if this point is refslinked (if not it should be root so it occuping all initial space), continue search for parent that is not recycled
+		var reld = checkpoint.getDataStats().refsLinked 
+		
+		if(reld != 0) {
+			var lp = fullonid[reld.linkedpoint]
+			
+			if(lp !== 'undefined' && lp != 0) {
+				if (checkpoint.recycled == 1) {
+					return this.findUndeletedParent(lp,fullonid)
+				} else {
+					return checkpoint
+				}
+			} else {
+				//could not find parent, safe purging
+				return 0
+			}
+		} 
+		//if it is not linked just go for full usage
+		return 0
+		
+	}
+	
+	PureEngineObj.refsLinking = function(backupConfiguration,checkpoint,fullonid) {
+		if (backupConfiguration.refs == 1) {
+			var reld = checkpoint.getDataStats().refsLinked 
+			
+			//if it is not linked, no action required
+			if (reld != 0) {
+				var lp = fullonid[reld.linkedpoint]
+				
+				if(lp !== 'undefined' && lp != 0) {
+					//if linked parent is not recycled, don't do anything
+					//if it is, find previous parent
+					if (lp.recycled == 1) {
+						//if previous point is recycled we need to take action
+						var findparent = this.findUndeletedParent(lp,fullonid)
+						if (findparent == 0) {
+							checkpoint.getDataStats().refsLinked = 0
+							checkpoint.type = "S"
+						} else {
+							checkpoint.getDataStats().refsLinked = ReFSLinked(findparent,backupConfiguration.refsdiff(checkpoint.pointDate.clone(),findparent.pointDate.clone())) 
+						}
+					}
+				} else {
+					//could not find parent, safe purging
+					checkpoint.getDataStats().refsLinked = 0
+					checkpoint.type = "S"
+				}
+			}
+		}
+	}
+	
 	PureEngineObj.doRecycle = function  (backupResult,backupConfiguration,garbagetime)
 	{
 		var pureEngineLocal = this
@@ -1437,17 +1533,24 @@ function VeeamPureEngine()
 		var newGfs = []
 		var point = 0
 		
+		var fullonid = {}
+		
 		for(var counter=0;counter < gfs.length;counter = counter + 1 )
 		{
 			point = gfs[counter]
+			fullonid[point.origuid] = point
+			
 			if(!point.flaggedForDeletion)
 			{
-				
+				//make sure that if we add a linked point that it has an undeleted parent
+				this.refsLinking(backupConfiguration,point,fullonid)
 				newGfs.push(point)
+				
 			}
 			else
 			{
 				backupResult.addLastAction(VeeamBackupLastActionObject(0,"Deleting point "+point))
+				point.recycled = 1
 				recyclebin.push(point)
 			}
 		}
@@ -1456,8 +1559,14 @@ function VeeamPureEngine()
 		for(var counter=0;counter < ret.length;counter = counter +1 )
 		{
 			point = ret[counter]
+			if (point.isVBK()) {
+				fullonid[point.origuid] = point
+			}
 			if(!point.flaggedForDeletion)
 			{
+				//make sure that if we add a linked point that it has an undeleted parent
+				this.refsLinking(backupConfiguration,point,fullonid)
+				
 				if (backupConfiguration.GFSActiveFull && point.isVBK() && point.isMarkedForGFS() && point.flagForKeepId == -1 ) {
 					point.type = "G"
 					point.flagForKeepId = 0
@@ -1469,6 +1578,7 @@ function VeeamPureEngine()
 			else
 			{
 				backupResult.addLastAction(VeeamBackupLastActionObject(0,"Deleting point "+point))
+				point.recycled = 1
 				recyclebin.push(point)
 			}
 		}
@@ -1641,6 +1751,32 @@ function VeeamPureEngine()
 		
 	}
 	
+	PureEngineObj.prevFullBackup = function(backupResult) {
+		var prevFull = 0
+		
+		var ret = backupResult.retention
+		for(var counter=ret.length-1;prevFull == 0 && counter >= 0;counter = counter -1 )
+		{
+			var point = ret[counter]
+			if(point.isVBK())
+			{
+					prevFull = point
+			}
+		}
+		
+		if (prevFull == 0) {
+			var gfs = backupResult.GFS
+			for(var counter=gfs.length-1;prevFull == 0 && counter >= 0;counter = counter -1 )
+			{
+				var point = gfs[counter]
+				if(point.isVBK())
+				{
+						prevFull = point
+				}
+			}
+		}
+		return prevFull
+	}
 	
 	
 	//give me fulls today
@@ -1663,7 +1799,7 @@ function VeeamPureEngine()
 				{
 					fulls.active = point
 				}
-				if (point.type == "S")
+				if (point.type == "S" || point.type == "L")
 				{
 					fulls.synthetic = point
 				}
@@ -2029,7 +2165,7 @@ function VeeamPureEngine()
 						activeAlreadyDone.active = newpoint
 						backupResult.addLastAction(VeeamBackupLastActionObject(0,"Created VBK / SEQ 1x I/O Write / 1x "+ this.humanReadableFilesize(newpoint.getDataStats().f())))
 					}
-					else if ($.inArray(latest.type,["F","S","I"]) == -1)
+					else if ($.inArray(latest.type,["F","S","I","L"]) == -1)
 					{
 						newpoint = VeeamBackupFileObject("full.vbk",VeeamBackupFileNullObject(),"F",backupConfiguration.getFullDataStats(exectime.clone()),exectime.clone(),exectime.clone())
 						activeAlreadyDone.active = newpoint
@@ -2065,13 +2201,31 @@ function VeeamPureEngine()
 						if(activeAlreadyDone.active.isnull() && activeAlreadyDone.synthetic.isnull() &&  this.testSyntheticFull(exectime.clone(),backupConfiguration))
 						{
 							
-							
 							var popInc = backupResult.retentionPop()
-							var synth = VeeamBackupFileObject("full.vbk",VeeamBackupFileNullObject(),"S",backupConfiguration.getFullDataStats(exectime.clone()),exectime.clone(),popInc.pointDate.clone())
-							backupResult.retentionPush(synth)
 							
-							backupResult.addLastAction(VeeamBackupLastActionObject(0,"Synthetic VBK /  RAND 2x I/O Write / 2x "+ this.humanReadableFilesize(synth.getDataStats().f())))
+							var refssuccess = 0
 							
+							if(backupConfiguration.refs == 1) {
+								prevfull = this.prevFullBackup(backupResult)
+								if (prevfull != 0) {
+									var stats = backupConfiguration.getFullDataStats(exectime.clone())
+									stats.refsLinked = ReFSLinked(prevfull.origuid,backupConfiguration.refsdiff(exectime.clone(),prevfull.pointDate.clone())) 
+									var refssynth = VeeamBackupFileObject("full.vbk",VeeamBackupFileNullObject(),"L",stats,exectime.clone(),exectime.clone())
+									
+									
+									backupResult.retentionPush(refssynth)
+									backupResult.addLastAction(VeeamBackupLastActionObject(0,"Synthetic ReFS VBK / Pointers Update "))
+									
+									refssuccess = 1
+								} 
+							} 
+							
+							if (refssuccess != 1) {
+								var synth = VeeamBackupFileObject("full.vbk",VeeamBackupFileNullObject(),"S",backupConfiguration.getFullDataStats(exectime.clone()),exectime.clone(),popInc.pointDate.clone())
+								backupResult.retentionPush(synth)
+								
+								backupResult.addLastAction(VeeamBackupLastActionObject(0,"Synthetic VBK /  RAND 2x I/O Write / 2x "+ this.humanReadableFilesize(synth.getDataStats().f())))
+							}
 							popInc.modify = exectime.clone()
 							backupResult.garbage.push(popInc)
 						}
@@ -2152,16 +2306,21 @@ function VeeamPureEngine()
 						
 
 						var newpoint = VeeamBackupFileObject("incremental.vib",VeeamBackupFileNullObject(),"I",backupConfiguration.getIncrementalDataStats(exectime.clone()),exectime.clone(),exectime.clone())
-						if ($.inArray(latest.type,["F","S","I"]) == -1)
+						if ($.inArray(latest.type,["F","S","I","L"]) == -1)
 						{
 							newpoint = VeeamBackupFileObject("full.vbk",VeeamBackupFileNullObject(),"S",backupConfiguration.getFullDataStats(exectime.clone()),exectime.clone(),exectime.clone())
 							backupResult.addLastAction(VeeamBackupLastActionObject(0,"Force Created VBK (could not find for vib) /  SEQ 1x I/O Write / 1x "+ this.humanReadableFilesize(newpoint.getDataStats().f())))
 						} else if (markers.touched == 1) {
+							//"active full" cause got GFS marker and GFSActiveFull was checked
+							
 							newpoint = VeeamBackupFileObject("full.vbk",VeeamBackupFileNullObject(),"S",backupConfiguration.getFullDataStats(exectime.clone()),exectime.clone(),exectime.clone())
 							newpoint.GFSType = markers.all
-							
 							backupResult.addLastAction(VeeamBackupLastActionObject(0,"GFS POINT /  SEQ 1x I/O Write / 1x "+ this.humanReadableFilesize(newpoint.getDataStats().f())))
+							
+							
 						} else {
+							//Creating vib
+							
 							backupResult.addLastAction(VeeamBackupLastActionObject(0,"Created VIB /  SEQ 1x I/O Write / 1x  "+ this.humanReadableFilesize(newpoint.getDataStats().f())))
 							//if the previous point was a vbk, this point his parent will be the previous point
 							//if it was an increment, we should connect it to the parent of the increment
