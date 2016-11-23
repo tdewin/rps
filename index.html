@@ -939,8 +939,14 @@ function renderGFX(backupResult,showWorstCase)
 			if(fs > fullmax) { fullmax = fs }
 			fulltotal += fs
 			
-			if(file.isGFS()) {
+			if(file.type == "G") {
 				table.img("rpsimg/gfs.png")
+			}
+			else if (file.type == "H")
+			{
+				//active full, type is S if synthetic
+				table.img("rpsimg/gfsl.png")
+				
 			}
 			else if (file.type == "F")
 			{
@@ -1638,7 +1644,7 @@ function rpcheck(jobject,defaultval) {
 </div>
 <div id="idreferences">
 <h1>The Restore Point Simulator</h1>
-Current version : <a href="/releasenotes/">0.4.0</a><br> 
+Current version : <a href="/releasenotes/">0.4.1</a><br> 
 Feedback via <a href="https://twitter.com/intent/tweet?screen_name=tdewin" style="text-decoration:none;">@tdewin</a> or on <a href="https://github.com/tdewin/rps/issues">GitHub</a><br>
 RPS heavily relies on some opensource <a href="#" onclick="showJS();return false;">javascript frameworks</a><br>
 </div>

@@ -96,16 +96,16 @@ function VeeamBackupDataStats(f,s,c,d,t)
 		d:function () { return this.changeRate },
 		clone:function () { 
 			var clone = VeeamBackupDataStats(this.file,this.source,this.compression,this.changeRate,this.transferCompression);
-			if(this.refsLinked != 0)
+			if(this.refsLinked !== undefined && this.refsLinked != 0)
 			{
-				clone.refsLinked = ReFSLinked(this.refsLinked.linkedpoint,this.refsLinked.percentagepoint)
+				clone.refsLinked = ReFSLinked(""+this.refsLinked.linkedpoint,this.refsLinked.percentagepoint)
 			}
 			return clone  },
 		fullclone:function () {
 			var clone = VeeamBackupDataStats(this.source*(this.compression/100),this.source,this.compression,100,this.transferCompression);
-			if(this.refsLinked != 0)
+			if(this.refsLinked !== undefined && this.refsLinked != 0)
 			{
-				clone.refsLinked = ReFSLinked(this.refsLinked.linkedpoint,this.refsLinked.percentagepoint)
+				clone.refsLinked = ReFSLinked(""+this.refsLinked.linkedpoint,this.refsLinked.percentagepoint)
 			}
 			return clone
 		},
@@ -157,7 +157,10 @@ function VeeamBackupFileObjectInheritable(file,parent,type,dataStats,createDate,
 		this.dataStats = dataStatsIn
 	}
 	
-	
+	VeeamBackupFileObj.getRefsLinked = function() {
+		if (this.dataStats && this.dataStats.refsLinked !== undefined && this.dataStats.refsLinked != 0) { return this.dataStats.refsLinked}
+		return 0
+	}
 	
 	VeeamBackupFileObj.pointid = -1
 	VeeamBackupFileObj.flagForKeepId = 0
@@ -169,7 +172,7 @@ function VeeamBackupFileObjectInheritable(file,parent,type,dataStats,createDate,
 	
 	//G acts like an archive flag.
 	VeeamBackupFileObj.isGFS = function() {
-		return (this.type == "G")
+		return (this.type == "G" || this.type == "H")
 	}
 	VeeamBackupFileObj.isGFSType = function (type)
 	{
@@ -183,10 +186,10 @@ function VeeamBackupFileObjectInheritable(file,parent,type,dataStats,createDate,
 		}
 	}
 	VeeamBackupFileObj.isFull = function() {
-		return ($.inArray(this.type,["G","S","F","D","L"]) != -1)
+		return ($.inArray(this.type,["G","S","F","D","L","H"]) != -1)
 	}
 	VeeamBackupFileObj.isVBK = function() {
-		return ($.inArray(this.type,["G","S","F","L"]) != -1)
+		return ($.inArray(this.type,["G","S","F","L","H"]) != -1)
 	}
 	VeeamBackupFileObj.isMarkedForGFS = function() {
 		return (this.GFSType.length > 0)
@@ -244,7 +247,7 @@ function VeeamBackupFileObjectInheritable(file,parent,type,dataStats,createDate,
 		var retString = " "+this.type+" >> "+this.fullfile()+"\t<< "+filesize(this.getDataStats().f(), {base: 2,round: 0})+"\t"+this.pointid+keptFor+" MOD "+this.modifyStr()
 		if(this.isMarkedForGFS())
 		{
-			if(this.type == "G")
+			if(this.isGFS())
 			{
 				retString = retString + " " + this.GFSPointids["W"] + "W "+ this.GFSPointids["M"] + "M "+ this.GFSPointids["Q"] + "Q "+ this.GFSPointids["Y"] + "Y "
 			}
@@ -267,7 +270,7 @@ function VeeamBackupFileObjectInheritable(file,parent,type,dataStats,createDate,
 		var retString = ""+this.pointid+keptFor
 		if(this.isMarkedForGFS())
 		{
-			if(this.type == "G")
+			if(this.isGFS())
 			{
 				retString = retString + " " + this.GFSPointids["W"] + "W "+ this.GFSPointids["M"] + "M "+ this.GFSPointids["Q"] + "Q "+ this.GFSPointids["Y"] + "Y "
 			}
@@ -601,7 +604,21 @@ function VeeamBackupResultObject()
 	VeeamBackupResultObj.lastActions = []
 	VeeamBackupResultObj.lastActionDate = 0
 	
-	
+	VeeamBackupResultObj.findPoint = function(origuid) {
+		
+		var gfs = this.GFS
+		for(var counter=gfs.length-1;counter >= 0;counter = counter - 1 )
+		{
+			if (gfs[counter].origuid == origuid) { return gfs[counter]}
+		}
+		var ret = this.retention
+		for(var counter=ret.length-1;counter >= 0;counter = counter - 1 )
+		{
+			if (ret[counter].origuid == origuid) { return ret[counter]}
+					
+		}
+		return 0;
+	}
 
 
 	VeeamBackupResultObj.beginAction = function(exectime)
@@ -1466,6 +1483,7 @@ function VeeamPureEngine()
 	}
 
 
+
 	PureEngineObj.findUndeletedParent = function(checkpoint,fullonid) {
 		//if this point is refslinked (if not it should be root so it occuping all initial space), continue search for parent that is not recycled
 		var reld = checkpoint.getDataStats().refsLinked 
@@ -1505,13 +1523,19 @@ function VeeamPureEngine()
 						var findparent = this.findUndeletedParent(lp,fullonid)
 						if (findparent == 0) {
 							checkpoint.getDataStats().refsLinked = 0
-							checkpoint.type = "S"
+							if (checkpoint.isGFS()) {
+								checkpoint.type = "G"
+							} else {
+								checkpoint.type = "S"
+							}
+							
 						} else {
 							checkpoint.getDataStats().refsLinked = ReFSLinked(findparent,backupConfiguration.refsdiff(checkpoint.pointDate.clone(),findparent.pointDate.clone())) 
 						}
 					}
 				} else {
 					//could not find parent, safe purging
+					alert("could not find partent, purged, should not happen")
 					checkpoint.getDataStats().refsLinked = 0
 					checkpoint.type = "S"
 				}
@@ -1568,7 +1592,9 @@ function VeeamPureEngine()
 				this.refsLinking(backupConfiguration,point,fullonid)
 				
 				if (backupConfiguration.GFSActiveFull && point.isVBK() && point.isMarkedForGFS() && point.flagForKeepId == -1 ) {
-					point.type = "G"
+					if (point.getRefsLinked() != 0) { point.type = "H"} 
+					else {point.type = "G"}
+					
 					point.flagForKeepId = 0
 					newGfs.push(point)
 				} else {
@@ -1684,7 +1710,25 @@ function VeeamPureEngine()
 									//stages based on http://helpcenter.veeam.com/backup/80/vsphere/backup_copy_gfs_weekly_cycle.html
 									//stage 1 of GFS marked parent
 									var removedparent = newRet.pop()
-									parent = VeeamBackupFileObject("full.vbk",VeeamBackupFileNullObject(),"S",removedparent.getDataStats(),mergetime.clone(),removedparent.pointDate.clone())
+									var remupdatetype = "G"
+									
+									
+							
+									if(backupConfiguration.refs == 1) {
+										var stats = removedparent.getDataStats().clone()
+										stats.refsLinked = ReFSLinked(removedparent.origuid,backupConfiguration.refsdiff(point.pointDate.clone(),removedparent.pointDate.clone())) 
+										parent = VeeamBackupFileObject("full.vbk",VeeamBackupFileNullObject(),"L",stats,mergetime.clone(),removedparent.pointDate.clone())		
+										
+										//if parent is already a linked parent, we should update the type not to G but to H (H is a linked G)
+										if (removedparent.getRefsLinked() != 0) {
+												remupdatetype = "H"
+										} 
+									} else {
+										parent = VeeamBackupFileObject("full.vbk",VeeamBackupFileNullObject(),"S",removedparent.getDataStats(),mergetime.clone(),removedparent.pointDate.clone())
+									}
+									
+									
+									
 									parent.GFSType = point.GFSType
 									parent.GFSPointids = point.GFSPointids
 									//connect incs to new compacted father
@@ -1702,26 +1746,48 @@ function VeeamPureEngine()
 									backupResult.addLastAction(VeeamBackupLastActionObject(0,"Deleting  VIB File"))
 									
 									//stage 3 pushing parent to GFS 
-									removedparent.type = "G"
+									removedparent.type = remupdatetype
 									removedparent.flagForKeepId = 0
 									gfs.push(removedparent)
 									
 								}
 								else
 								{
-									this.debugln("Just merging cause parent is not marked with GFS",4)
 									parent.modifyDate = mergetime.clone()
 									parent.pointDate = point.pointDate.clone()
 									parent.pointid = point.pointid
-									parent.type = "S"
 									parent.GFSType = point.GFSType
 									parent.GFSPointids = point.GFSPointids
-									parent.setDataStats(backupConfiguration.getFullDataStats(point.pointDate.clone()))
+									
+									var rfsl = parent.getRefsLinked()
+									var rfslsuc = 0
+									
+									//if we merging, check if the parent is a refslinked full
+									//if yes, we will recalculate the diff between the linked parent and the actual time
+									if(backupConfiguration.refs == 1 && rfsl != 0) {
+										rfparent = backupResult.findPoint(rfsl.linkedpoint)
+										if (rfparent != 0) {
+											rfslsuc = 1
+											var stats = backupConfiguration.getFullDataStats(point.pointDate.clone())
+											stats.refsLinked = ReFSLinked(rfsl.linkedpoint,backupConfiguration.refsdiff(point.pointDate.clone(),rfparent.pointDate.clone())) 
+											
+											parent.setDataStats(stats)
+											backupResult.addLastAction(VeeamBackupLastActionObject(0,"Fast clone merge"))
+										} 
+									} 
+									
+									if (rfslsuc == 0) {
+										this.debugln("Just merging cause parent is not marked with GFS",4)
+										parent.type = "S"
+										parent.setDataStats(backupConfiguration.getFullDataStats(point.pointDate.clone()))
+										backupResult.addLastAction(VeeamBackupLastActionObject(0,"Merging VBK/VIB / RAND 2x I/O Read, Write / 2x "+ this.humanReadableFilesize(point.getDataStats().f())))
+									}
 									
 									point.modifyDate = mergetime.clone()
 									recyclebin.push(point)
-									backupResult.addLastAction(VeeamBackupLastActionObject(0,"Merging VBK/VIB / RAND 2x I/O Read, Write / 2x "+ this.humanReadableFilesize(point.getDataStats().f())))
+										
 									backupResult.addLastAction(VeeamBackupLastActionObject(0,"Deleting merged VIB File"))
+									
 								}
 								
 								
