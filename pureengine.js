@@ -143,7 +143,7 @@ function VeeamBackupFileObjectInheritable(file,parent,type,dataStats,createDate,
 		VeeamBackupFileObj.modifyDate = createDate.clone()
 		VeeamBackupFileObj.pointDate = pointDate.clone()
 		
-		VeeamBackupFileObj.uid = createDate.format("YYMMDDHH")+"-"+Math.floor(Math.random()*1000000000)+"-"+VeeamBackupFileObj.suid
+		VeeamBackupFileObj.uid = pointDate.format("YY-MM-DD HH")+"-"+Math.floor(Math.random()*1000000000)+"-"+VeeamBackupFileObj.suid
 		VeeamBackupFileObj.origuid = VeeamBackupFileObj.uid
 	}
 	
@@ -587,7 +587,9 @@ function VeeamBackupResultObject()
 	
 	//don't rely on this value unless you execute a recalcpointid
 	VeeamBackupResultObj.newestFull = -1
-
+	//don't rely on this value unless you execute a recalcpointid
+	VeeamBackupResultObj.fullonid = {}
+	
 	VeeamBackupResultObj.safeToMerge = 0
 	
 	VeeamBackupResultObj.worstCaseSize = 0
@@ -1321,6 +1323,8 @@ function VeeamPureEngine()
 		var gfscounters = {W:1,M:1,Q:1,Y:1}
 		var ret = backupResult.retention
 		
+		
+		
 		if(backupConfiguration.style == 4)
 		{
 			//instant cleanup!
@@ -1364,6 +1368,8 @@ function VeeamPureEngine()
 			backupResult.safeToMerge = 1
 			
 			
+			var fullonidrec = {}
+			
 			//this is the object we want to keep
 			//objects that are not siblings or parents should be deleted
 			var keep = ret[ret.length-1]
@@ -1383,6 +1389,9 @@ function VeeamPureEngine()
 									point.GFSPointids[gfstype] = -1
 								}
 				})
+				
+				
+				
 				return shouldBeKept
 			}
 			
@@ -1439,7 +1448,7 @@ function VeeamPureEngine()
 					point.flagForKeepId = keep.pointid
 				}
 				
-				if(point.isMarkedForGFS() && !point.isVBK)
+				if(point.isMarkedForGFS() && !point.isVBK())
 				{
 					//incStars
 					if(pureEngineLocal.flags.incStars)
@@ -1450,7 +1459,9 @@ function VeeamPureEngine()
 					}
 				}
 				
-
+				if (point.isVBK()) {
+					fullonidrec[point.origuid] = point
+				}
 				simplepoint = simplepoint + 1
 			}
 			
@@ -1478,32 +1489,44 @@ function VeeamPureEngine()
 				{
 					point.flaggedForDeletion = 1
 				}
+				fullonidrec[point.origuid] = point
 			}
+			backupResult.fullonid = fullonidrec
 		}
 	}
 
 
 
-	PureEngineObj.findUndeletedParent = function(checkpoint,fullonid) {
+	PureEngineObj.findUndeletedParent = function(linkedparent,fullonid) {
+		
+		
+		if(linkedparent.recycled != 1) {
+			return linkedparent
+		}
+		
 		//if this point is refslinked (if not it should be root so it occuping all initial space), continue search for parent that is not recycled
-		var reld = checkpoint.getDataStats().refsLinked 
+		var reld = linkedparent.getDataStats().refsLinked 
+		
+		
 		
 		if(reld != 0) {
 			var lp = fullonid[reld.linkedpoint]
 			
 			if(lp !== 'undefined' && lp != 0) {
-				if (checkpoint.recycled == 1) {
+				if (linkedparent.recycled == 1) {
 					return this.findUndeletedParent(lp,fullonid)
 				} else {
-					return checkpoint
+					return linkedparent
 				}
 			} else {
 				//could not find parent, safe purging
-				//alert("could not find partent, purged, should not happen")
+				//console.log("could not find partent, purged, should not happen")
 				return 0
 			}
 		} 
 		//if it is not linked just go for full usage
+		//console.log("it is not refsLinked "+linkedparent.origuid.substr(-6))
+		
 		return 0
 		
 	}
@@ -1524,24 +1547,26 @@ function VeeamPureEngine()
 						var findparent = this.findUndeletedParent(lp,fullonid)
 						if (findparent == 0) {
 							checkpoint.getDataStats().refsLinked = 0
+							//console.log("could not find for point "+checkpoint.origuid.substr(-6)+" parent "+reld.linkedpoint.substr(-6))
 							if (checkpoint.isGFS()) {
 								checkpoint.type = "G"
-								//alert("could not find "+checkpoint.pointdate)
+								
 							} else {
 								checkpoint.type = "S"
 							}
 							
 						} else {
-							checkpoint.getDataStats().refsLinked = ReFSLinked(findparent,backupConfiguration.refsdiff(checkpoint.pointDate.clone(),findparent.pointDate.clone())) 
+							checkpoint.getDataStats().refsLinked = ReFSLinked(findparent.uid,backupConfiguration.refsdiff(checkpoint.pointDate.clone(),findparent.pointDate.clone())) 
+							//console.log("Relinked")
 						}
 					}
 				} else {
 					//could not find parent, safe purging
-					//alert("could not find partent, purged, should not happen")
+					//console.log("could not find parent, purged, should not happen")
 					checkpoint.getDataStats().refsLinked = 0
 					checkpoint.type = "S"
 				}
-			}
+			} 
 		}
 	}
 	
@@ -1559,17 +1584,17 @@ function VeeamPureEngine()
 		var newGfs = []
 		var point = 0
 		
-		var fullonid = {}
+		
 		
 		for(var counter=0;counter < gfs.length;counter = counter + 1 )
 		{
 			point = gfs[counter]
-			fullonid[point.origuid] = point
+
 			
 			if(!point.flaggedForDeletion)
 			{
 				//make sure that if we add a linked point that it has an undeleted parent
-				this.refsLinking(backupConfiguration,point,fullonid)
+				this.refsLinking(backupConfiguration,point,backupResult.fullonid)
 				newGfs.push(point)
 				
 			}
@@ -1585,13 +1610,11 @@ function VeeamPureEngine()
 		for(var counter=0;counter < ret.length;counter = counter +1 )
 		{
 			point = ret[counter]
-			if (point.isVBK()) {
-				fullonid[point.origuid] = point
-			}
+
 			if(!point.flaggedForDeletion)
 			{
 				//make sure that if we add a linked point that it has an undeleted parent
-				this.refsLinking(backupConfiguration,point,fullonid)
+				this.refsLinking(backupConfiguration,point,backupResult.fullonid)
 				
 				if (backupConfiguration.GFSActiveFull && point.isVBK() && point.isMarkedForGFS() && point.flagForKeepId == -1 ) {
 					if (point.getRefsLinked() != 0) { point.type = "H"} 

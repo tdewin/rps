@@ -715,8 +715,11 @@ function renderCanvas(backupResult,showWorstCase)
 	var colsyn = ["#aed9a5","#bfe1b8"]
 	var colactive = ["#ff9955","#ffb380"]
 	var colgfs = ["#656565","#757575"]
+	var refs = ["#e2e2e2"]
 	var triangleLinkSize = 15
+	var refsoffset = triangleLinkSize+15
 	var totalsum = 54+25
+	
 
 	var charwidth = 12
 	var retentionspace = charwidth*prelogicvar.sretstring
@@ -758,7 +761,7 @@ function renderCanvas(backupResult,showWorstCase)
 		var x = margindoc+retentionspace
 		var y = margindoc+(i*(fileheight+margin))
 		var width = (f.isFull()?fullwidth:incwidth)
-		var color = ((f.type == "F")?colactive:((f.type == "G")?colgfs:colsyn))
+		var color = ((f.type == "F")?colactive:((f.type == "G" || f.type == "H")?colgfs:colsyn))
 
 		t(ctx,f.toSimpleRetentionString(),margindoc,y)
 		t(ctx,f.file,margindoc+retentionspace+fullwidth+10,y)
@@ -773,8 +776,9 @@ function renderCanvas(backupResult,showWorstCase)
 		ctx.fillStyle=color[0];	
 		ctx.fillRect(x,y,width,fileheight);
 		
-		if (f.type == "G") {
+		if (f.type == "G" && f.type == "H") {
 			 ctx.drawImage(igfs,x+5,y+3);
+			 
 		}
 		else {
 			var tm = 2
@@ -786,6 +790,14 @@ function renderCanvas(backupResult,showWorstCase)
 			ctx.fillStyle=color[1];
 			ctx.fill();
 		}
+		
+		if(f.type == "H" || f.type == "L") {
+			ctx.beginPath();
+			ctx.fillStyle=refs[0];
+			ctx.fillRect(x+refsoffset,y,width-refsoffset,fileheight);	
+		}
+		
+		
 		
 	})
 	var sumy = files.length*(fileheight+margin)+margindoc+4
@@ -919,7 +931,9 @@ function renderGFX(backupResult,showWorstCase)
 	var inctotal = 0
 	
 	var table = new gfxTable()
+	
 	table.td("Retention").attr("class","widthpoint")
+	//table.td("").td("")
 	table.td("").attr("class","widthpointvisual")
 	table.td("File").attr("class","widthfile")
 	table.td("Size").attr("class","widthsize")
@@ -932,6 +946,12 @@ function renderGFX(backupResult,showWorstCase)
 		var file = files[counter]
 		table.tr().td(file.toRetentionString())
 		var fs = file.getDataStats().f()
+		
+		var r = "- - "
+		if (file.getRefsLinked() != 0) {
+			r = file.getRefsLinked().linkedpoint.substr(-6)
+		}
+		//table.td(file.origuid.substr(-6)).td(r)
 		
 		if(file.isFull())
 		{
@@ -1161,6 +1181,7 @@ function simulate()
 	}
 	
 	
+	//makes the div big enough so the page does not constantly resizes. Especially usefull in manual mode
 	var maxpointguess = backupConfiguration.simplePoints
 	maxpointguess += backupConfiguration.GFS.W + backupConfiguration.GFS.M + backupConfiguration.GFS.Q + backupConfiguration.GFS.Y
 	var fconfig = backupConfiguration.doFull()
@@ -1175,8 +1196,7 @@ function simulate()
 	} else if (fconfig == 2 || fconfig == 3) {
 		maxpointguess += 7*intervalmulti
 	}
-	
-	$("#idResult").height(((maxpointguess+5)*20+100)+"px")
+	$("#idResult").height(((maxpointguess+2)*20+100)+"px")
 	
 	
 	var datagrowthrate = gsv.mappings["dataGrowthRate"].convert()
