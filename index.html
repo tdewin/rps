@@ -1161,6 +1161,24 @@ function simulate()
 	}
 	
 	
+	var maxpointguess = backupConfiguration.simplePoints
+	maxpointguess += backupConfiguration.GFS.W + backupConfiguration.GFS.M + backupConfiguration.GFS.Q + backupConfiguration.GFS.Y
+	var fconfig = backupConfiguration.doFull()
+	var intervalmulti = 1
+	if(interval.hours !== undefined)
+	{
+		intervalmulti = 24/(interval.hours)
+	}
+	if(fconfig == 1) {
+		//saturday can be off 6 days so 31+6
+		maxpointguess += 37*intervalmulti*(1+backupConfiguration.distanceMonths())
+	} else if (fconfig == 2 || fconfig == 3) {
+		maxpointguess += 7*intervalmulti
+	}
+	
+	$("#idResult").height(((maxpointguess+5)*20+100)+"px")
+	
+	
 	var datagrowthrate = gsv.mappings["dataGrowthRate"].convert()
 	var datagrowthyears = gsv.mappings["dataGrowthYear"].convert()
 	var datagrowthenabled = gsv.mappings["dataGrowth"].convert()
@@ -1456,6 +1474,18 @@ $( document ).ready(function() {
 	toggleDataGrowth()
 	toggleExport()
 	toggleCanvas()
+	
+	$( document ).keypress(function( event ) {
+		if ( event.which == 43 && $('#idShowMeHowCheck').is(':checked')) {
+			event.preventDefault();
+			manualrun(1);
+			return false;
+		} else if (event.which == 13) {
+			rpcheckquick()
+			gbcheckquick() 
+			simulate()
+		}
+	})
 });
 
 
@@ -1579,7 +1609,9 @@ function showVisualData(datasize)
 		tableResult.append(table.gettbody())
 		$("#idPopUpDiv").show()
 }
-
+function gbcheckquick() {
+	gbcheck(document.getElementById('idData'),14)
+}
 function gbcheck(jobject)
 {
 	var jqo = $(jobject)
@@ -2038,9 +2070,9 @@ RPS heavily relies on some opensource <a href="#" onclick="showJS();return false
 			</table>
 </div>
 </div>
-<div id="idResult" class="hiddenBlock">
+<div id="idResult" class="hiddenBlock" >
 		<h2>Result</h2>
-		<table id="idTableResult">
+		<table id="idTableResult" >
 			<tbody></tbody>
 		</table>
 </div>

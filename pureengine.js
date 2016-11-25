@@ -1499,6 +1499,7 @@ function VeeamPureEngine()
 				}
 			} else {
 				//could not find parent, safe purging
+				//alert("could not find partent, purged, should not happen")
 				return 0
 			}
 		} 
@@ -1525,6 +1526,7 @@ function VeeamPureEngine()
 							checkpoint.getDataStats().refsLinked = 0
 							if (checkpoint.isGFS()) {
 								checkpoint.type = "G"
+								//alert("could not find "+checkpoint.pointdate)
 							} else {
 								checkpoint.type = "S"
 							}
@@ -1535,7 +1537,7 @@ function VeeamPureEngine()
 					}
 				} else {
 					//could not find parent, safe purging
-					alert("could not find partent, purged, should not happen")
+					//alert("could not find partent, purged, should not happen")
 					checkpoint.getDataStats().refsLinked = 0
 					checkpoint.type = "S"
 				}
