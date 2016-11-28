@@ -67,11 +67,12 @@ if (typeof exports === 'object')
 		return VeeamPureEngine()
 	}
 }
-function ReFSLinked(lnkdpt,perct) 
+function ReFSLinked(lnkdpt,disct) 
 {
+	//discount in bytes (bytes already stored in previous chain)
 	return {
 		linkedpoint:lnkdpt,
-		percentagepoint:perct
+		discount:disct
 	}
 }
 function VeeamBackupDataStats(f,s,c,d,t)
@@ -85,7 +86,7 @@ function VeeamBackupDataStats(f,s,c,d,t)
 		refsLinked:0,
 		f:function () { 
 			if (this.refsLinked) {
-				return this.file*(this.refsLinked.percentagepoint/100)
+				return this.file-this.refsLinked.discount
 			} else {
 				return this.file 
 			}
@@ -98,14 +99,14 @@ function VeeamBackupDataStats(f,s,c,d,t)
 			var clone = VeeamBackupDataStats(this.file,this.source,this.compression,this.changeRate,this.transferCompression);
 			if(this.refsLinked !== undefined && this.refsLinked != 0)
 			{
-				clone.refsLinked = ReFSLinked(""+this.refsLinked.linkedpoint,this.refsLinked.percentagepoint)
+				clone.refsLinked = ReFSLinked(""+this.refsLinked.linkedpoint,this.refsLinked.discount)
 			}
 			return clone  },
 		fullclone:function () {
 			var clone = VeeamBackupDataStats(this.source*(this.compression/100),this.source,this.compression,100,this.transferCompression);
 			if(this.refsLinked !== undefined && this.refsLinked != 0)
 			{
-				clone.refsLinked = ReFSLinked(""+this.refsLinked.linkedpoint,this.refsLinked.percentagepoint)
+				clone.refsLinked = ReFSLinked(""+this.refsLinked.linkedpoint,this.refsLinked.discount)
 			}
 			return clone
 		},
@@ -362,18 +363,41 @@ function VeeamBackupConfigurationObject(style,simplePoints,sourceSize)
 	VeeamBackupConfigurationObj.simpleYearGrowth = 0
 	
 	VeeamBackupConfigurationObj.refs = 0
-	VeeamBackupConfigurationObj.refsdiff = function (childdate,rootdate) {
+	VeeamBackupConfigurationObj.refsMethod = 1
+	
+	VeeamBackupConfigurationObj.refsdiffperct = function (childdate,rootdate) {
 		var base = 100
+		var daydiff = childdate.diff(rootdate, 'days')*1.0
+		daydiff = (daydiff < 0)?-daydiff:daydiff;
+		
 		if (this.refs == 1) {
-			base = (this.changeRate*2 > 20)?this.changeRate*2:20;
-			
-			
-			//In theory 20% base + 20% added per year (over 4 years it would mean complete data refresh)
-			var daydiff = childdate.diff(rootdate, 'days')*1.0
-			daydiff = (daydiff < 0)?-daydiff:daydiff;
-			base = base + parseInt(base*(daydiff/365.0))
-			if (base > 100) { base = 100 }
-		}
+			if (this.refsMethod == 2) {
+				//E1 = days
+				//C1 = changerate
+				//=CEILING.MATH(POWER((E1-1)/365,1/1.5)*(($C$1)*3+15)+($C$1))
+				// 5% - > 35% ((dayvar)*(5*3+15)+5) yearly and crossing around 10% at 1 month
+				// 
+				base = this.changeRate
+				if (daydiff > 1) {
+					var powbender = (0.6666)
+					base = Math.ceil((Math.pow((daydiff-1)/365,powbender)*(this.changeRate*3 + 15 ))+this.changeRate)
+				} 
+				console.log(base)
+				
+			}
+			else {
+				
+				base = (this.changeRate)
+				
+				//if 10% -> 10 (base) + 20 + 2*10 = 50%
+				// 5% -> 5 + 20 + 2*5 = 35%
+				opyear = 20+2*this.changeRate
+
+				base = base + parseInt(opyear*(daydiff/365.0))
+								
+			}
+		} 
+		if (base > 100 || base < 0 || isNaN(base)) { base = 100 }
 		return base 
 	}
 	
@@ -588,7 +612,7 @@ function VeeamBackupResultObject()
 	//don't rely on this value unless you execute a recalcpointid
 	VeeamBackupResultObj.newestFull = -1
 	//don't rely on this value unless you execute a recalcpointid
-	VeeamBackupResultObj.fullonid = {}
+	VeeamBackupResultObj.pointsonid = {}
 	
 	VeeamBackupResultObj.safeToMerge = 0
 	
@@ -1368,7 +1392,7 @@ function VeeamPureEngine()
 			backupResult.safeToMerge = 1
 			
 			
-			var fullonidrec = {}
+			var pointsonidrec = {}
 			
 			//this is the object we want to keep
 			//objects that are not siblings or parents should be deleted
@@ -1459,9 +1483,9 @@ function VeeamPureEngine()
 					}
 				}
 				
-				if (point.isVBK()) {
-					fullonidrec[point.origuid] = point
-				}
+				
+				pointsonidrec[point.origuid] = point
+				
 				simplepoint = simplepoint + 1
 			}
 			
@@ -1489,15 +1513,26 @@ function VeeamPureEngine()
 				{
 					point.flaggedForDeletion = 1
 				}
-				fullonidrec[point.origuid] = point
+				pointsonidrec[point.origuid] = point
 			}
-			backupResult.fullonid = fullonidrec
+			backupResult.pointsonid = pointsonidrec
 		}
 	}
 
+	PureEngineObj.LinkReFS = function(backupConfiguration,newpoint,oldpoint) {
+		var pctdiff = backupConfiguration.refsdiffperct(newpoint.pointDate.clone(),oldpoint.pointDate.clone())	
+		
+		var disct = parseInt(((oldpoint.getDataStats().s()*(100-pctdiff))/100)*(newpoint.getDataStats().c()/100))
+		/*var days = newpoint.pointDate.clone().diff(oldpoint.pointDate.clone(),'days')
+		if (days > 300) {
+			console.log("diffy "+pctdiff)
+		}*/
+		
+		
+		newpoint.getDataStats().refsLinked = ReFSLinked(oldpoint.uid,disct) 
+	}
 
-
-	PureEngineObj.findUndeletedParent = function(linkedparent,fullonid) {
+	PureEngineObj.findUndeletedParent = function(linkedparent,pointsonid) {
 		
 		
 		if(linkedparent.recycled != 1) {
@@ -1510,11 +1545,11 @@ function VeeamPureEngine()
 		
 		
 		if(reld != 0) {
-			var lp = fullonid[reld.linkedpoint]
+			var lp = pointsonid[reld.linkedpoint]
 			
 			if(lp !== 'undefined' && lp != 0) {
 				if (linkedparent.recycled == 1) {
-					return this.findUndeletedParent(lp,fullonid)
+					return this.findUndeletedParent(lp,pointsonid)
 				} else {
 					return linkedparent
 				}
@@ -1531,20 +1566,20 @@ function VeeamPureEngine()
 		
 	}
 	
-	PureEngineObj.refsLinking = function(backupConfiguration,checkpoint,fullonid) {
+	PureEngineObj.refsLinking = function(backupConfiguration,checkpoint,pointsonid) {
 		if (backupConfiguration.refs == 1) {
 			var reld = checkpoint.getDataStats().refsLinked 
 			
 			//if it is not linked, no action required
 			if (reld != 0) {
-				var lp = fullonid[reld.linkedpoint]
+				var lp = pointsonid[reld.linkedpoint]
 				
 				if(lp !== 'undefined' && lp != 0) {
 					//if linked parent is not recycled, don't do anything
 					//if it is, find previous parent
 					if (lp.recycled == 1) {
 						//if previous point is recycled we need to take action
-						var findparent = this.findUndeletedParent(lp,fullonid)
+						var findparent = this.findUndeletedParent(lp,pointsonid)
 						if (findparent == 0) {
 							checkpoint.getDataStats().refsLinked = 0
 							//console.log("could not find for point "+checkpoint.origuid.substr(-6)+" parent "+reld.linkedpoint.substr(-6))
@@ -1556,7 +1591,8 @@ function VeeamPureEngine()
 							}
 							
 						} else {
-							checkpoint.getDataStats().refsLinked = ReFSLinked(findparent.uid,backupConfiguration.refsdiff(checkpoint.pointDate.clone(),findparent.pointDate.clone())) 
+							this.LinkReFS(backupConfiguration,checkpoint,findparent) 
+
 							//console.log("Relinked")
 						}
 					}
@@ -1594,7 +1630,7 @@ function VeeamPureEngine()
 			if(!point.flaggedForDeletion)
 			{
 				//make sure that if we add a linked point that it has an undeleted parent
-				this.refsLinking(backupConfiguration,point,backupResult.fullonid)
+				this.refsLinking(backupConfiguration,point,backupResult.pointsonid)
 				newGfs.push(point)
 				
 			}
@@ -1614,7 +1650,7 @@ function VeeamPureEngine()
 			if(!point.flaggedForDeletion)
 			{
 				//make sure that if we add a linked point that it has an undeleted parent
-				this.refsLinking(backupConfiguration,point,backupResult.fullonid)
+				this.refsLinking(backupConfiguration,point,backupResult.pointsonid)
 				
 				if (backupConfiguration.GFSActiveFull && point.isVBK() && point.isMarkedForGFS() && point.flagForKeepId == -1 ) {
 					if (point.getRefsLinked() != 0) { point.type = "H"} 
@@ -1741,8 +1777,10 @@ function VeeamPureEngine()
 							
 									if(backupConfiguration.refs == 1) {
 										var stats = removedparent.getDataStats().clone()
-										stats.refsLinked = ReFSLinked(removedparent.origuid,backupConfiguration.refsdiff(point.pointDate.clone(),removedparent.pointDate.clone())) 
-										parent = VeeamBackupFileObject("full.vbk",VeeamBackupFileNullObject(),"L",stats,mergetime.clone(),removedparent.pointDate.clone())		
+										stats.refslinked = 0
+										
+										parent = VeeamBackupFileObject("full.vbk",VeeamBackupFileNullObject(),"L",stats,mergetime.clone(),removedparent.pointDate.clone())	
+										this.LinkReFS(backupConfiguration,parent,removedparent) 										
 										
 										//if parent is already a linked parent, we should update the type not to G but to H (H is a linked G)
 										if (removedparent.getRefsLinked() != 0) {
@@ -1793,10 +1831,11 @@ function VeeamPureEngine()
 										rfparent = backupResult.findPoint(rfsl.linkedpoint)
 										if (rfparent != 0) {
 											rfslsuc = 1
-											var stats = backupConfiguration.getFullDataStats(point.pointDate.clone())
-											stats.refsLinked = ReFSLinked(rfsl.linkedpoint,backupConfiguration.refsdiff(point.pointDate.clone(),rfparent.pointDate.clone())) 
 											
+											var stats = backupConfiguration.getFullDataStats(point.pointDate.clone())
 											parent.setDataStats(stats)
+											this.LinkReFS(backupConfiguration,parent,rfparent) 
+											
 											backupResult.addLastAction(VeeamBackupLastActionObject(0,"Fast clone merge"))
 										} 
 									} 
@@ -2297,18 +2336,18 @@ function VeeamPureEngine()
 							var refssuccess = 0
 							
 							if(backupConfiguration.refs == 1) {
-								prevfull = this.prevFullBackup(backupResult)
-								if (prevfull != 0) {
+								//prevfull = this.prevFullBackup(backupResult)
+								//if (prevfull != 0) {
 									var stats = backupConfiguration.getFullDataStats(exectime.clone())
-									stats.refsLinked = ReFSLinked(prevfull.origuid,backupConfiguration.refsdiff(exectime.clone(),prevfull.pointDate.clone())) 
-									var refssynth = VeeamBackupFileObject("full.vbk",VeeamBackupFileNullObject(),"L",stats,exectime.clone(),exectime.clone())
 									
+									var refssynth = VeeamBackupFileObject("full.vbk",VeeamBackupFileNullObject(),"L",stats,exectime.clone(),exectime.clone())
+									this.LinkReFS(backupConfiguration,refssynth,latest) 
 									
 									backupResult.retentionPush(refssynth)
 									backupResult.addLastAction(VeeamBackupLastActionObject(0,"Synthetic ReFS VBK / Pointers Update "))
 									
 									refssuccess = 1
-								} 
+								//} 
 							} 
 							
 							if (refssuccess != 1) {
