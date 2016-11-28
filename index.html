@@ -22,6 +22,7 @@
 <script src="moment.min.js"></script>
 <script src="filesize-mod.js"></script>
 <script src="pureengine.js"></script>
+<script src="spin.min.js"></script>
 <!--<script src="beta/pureengine.js"></script>-->
 
 <script>
@@ -1122,8 +1123,52 @@ function manualrunDirect(steps,simulateButton)
 
 }
 
-function simulate()
-{
+function simulate() {
+
+	var gfsflag = false
+	$.each(['#idGFSM','#idGFSW','#idGFSQ','#idGFSY'],function(i,v) {
+		if (parseInt($(v).val()) != 0) { gfsflag = true } 
+	})
+	gfsflag = (gfsflag && parseInt($('#idStyle').val()) == 3)?true:false;
+	
+	
+	if(!$("#idShowMeHowCheck").is(":checked") && ($('#idDataGrowth').is(':checked') || parseInt($("#idRP").val()) > 30 ||  gfsflag)) {
+		$("#overlay").show();
+		var opts = {
+			  lines: 13 // The number of lines to draw
+			, length: 28 // The length of each line
+			, width: 14 // The line thickness
+			, radius: 42 // The radius of the inner circle
+			, scale: 1 // Scales overall size of the spinner
+			, corners: 1 // Corner roundness (0..1)
+			, color: '#000' // #rgb or #rrggbb or array of colors
+			, opacity: 0.25 // Opacity of the lines
+			, rotate: 0 // The rotation offset
+			, direction: 1 // 1: clockwise, -1: counterclockwise
+			, speed: 1 // Rounds per second
+			, trail: 60 // Afterglow percentage
+			, fps: 20 // Frames per second when using setTimeout() as a fallback for CSS
+			, zIndex: 2e9 // The z-index (defaults to 2000000000)
+			, className: 'spinner' // The CSS class to assign to the spinner
+			, top: '50%' // Top position relative to parent
+			, left: '50%' // Left position relative to parent
+			, shadow: false // Whether to render a shadow
+			, hwaccel: false // Whether to use hardware acceleration
+			, position: 'absolute' // Element positioning
+			}
+		var target = document.getElementById('overlay')
+		var spinner = new Spinner(opts).spin(target);
+		window.setTimeout('simulateDoWork();$("#overlay").hide();',200)
+	} else {
+		simulateDoWork()
+	}
+	 
+	
+	
+	
+}
+
+function simulateDoWork() {
 	var gsv = GUIStateVariables()
 	
 	$("#idResult").hide()
@@ -1568,6 +1613,7 @@ function showJS()
 		{txt:"MomentJS",link:"http://momentjs.com/"},
 		{txt:"FilesizeJS",link:"http://filesizejs.com/"},
 		{txt:"URI.js",link:"http://medialize.github.io/URI.js/"},
+		{txt:"Spin.js",link:"https://github.com/fgnass/spin.js"}
 	]
 	table.td("RPS wouldn't be possible without these frameworks:")
 	$.each(text,function(index,line) {
@@ -1689,6 +1735,10 @@ function rpcheck(jobject,defaultval) {
 }
 
 </script>
+
+<div class="overlay" id="overlay">
+
+</div>
 
 <div class="alpha">
 This is an alpha version. <br>
