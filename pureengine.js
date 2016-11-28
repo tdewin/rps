@@ -363,7 +363,7 @@ function VeeamBackupConfigurationObject(style,simplePoints,sourceSize)
 	VeeamBackupConfigurationObj.simpleYearGrowth = 0
 	
 	VeeamBackupConfigurationObj.refs = 0
-	VeeamBackupConfigurationObj.refsMethod = 1
+	VeeamBackupConfigurationObj.refsMethod = 3
 	
 	VeeamBackupConfigurationObj.refsdiffperct = function (childdate,rootdate) {
 		var base = 100
@@ -371,21 +371,7 @@ function VeeamBackupConfigurationObject(style,simplePoints,sourceSize)
 		daydiff = (daydiff < 0)?-daydiff:daydiff;
 		
 		if (this.refs == 1) {
-			if (this.refsMethod == 2) {
-				//E1 = days
-				//C1 = changerate
-				//=CEILING.MATH(POWER((E1-1)/365,1/1.5)*(($C$1)*3+15)+($C$1))
-				// 5% - > 35% ((dayvar)*(5*3+15)+5) yearly and crossing around 10% at 1 month
-				// 
-				base = this.changeRate
-				if (daydiff > 1) {
-					var powbender = (0.6666)
-					base = Math.ceil((Math.pow((daydiff-1)/365,powbender)*(this.changeRate*3 + 15 ))+this.changeRate)
-				} 
-				console.log(base)
-				
-			}
-			else {
+			if (this.refsMethod == 1) {
 				
 				base = (this.changeRate)
 				
@@ -396,6 +382,27 @@ function VeeamBackupConfigurationObject(style,simplePoints,sourceSize)
 				base = base + parseInt(opyear*(daydiff/365.0))
 								
 			}
+			else if (this.refsMethod == 2) {
+				//fooplot function : ((x-1)/365)^(2/3)*(3*5+15)+5
+				//hits 10% at 30 days && 35% at 1year
+				base = this.changeRate
+				if (daydiff > 1) {
+					var powbender = (2/3)
+					base = Math.ceil((Math.pow((daydiff-1)/365,powbender)*(this.changeRate*3 + 15 ))+this.changeRate)
+				} 
+				
+				
+			} else if (this.refsMethod == 3)  {
+				//fooplot function : ((x-1)/365)^(1/3)*(2*10+60)+10            || ((x-1)/365)^(1/3)*(2*5+60)+5
+				//hits 25% at 7 days && 35% at 30 days && 75% at 1 year
+				base = this.changeRate
+				if (daydiff > 1) {
+					var powbender = (1/3)
+					base = Math.ceil((Math.pow((daydiff-1)/365,powbender)*(this.changeRate*2 + 60 ))+this.changeRate)
+					
+				} 				
+			}
+			
 		} 
 		if (base > 100 || base < 0 || isNaN(base)) { base = 100 }
 		return base 

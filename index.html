@@ -1211,6 +1211,8 @@ function simulate()
 	} else { backupConfiguration.simpleYearGrowth = 0 }
 	var exporturl = getExportStr()
 	
+	backupConfiguration.refsMethod = $('#idRefsMethod').val()
+	
 	if(!showmehow)
 	{
 		gsv.backupConfiguration = backupConfiguration
@@ -1225,6 +1227,7 @@ function simulate()
 		if(showlatest == "1") {
 			gsv.showWorstCase = false
 		}
+		
 		
 		
 		
@@ -1448,6 +1451,12 @@ $( document ).ready(function() {
 		$('#idManStart').val(start)
 		$('#idManStop').val(stop)
 		$('#idShowLatest').val(1)
+		$('#idDivDev').show();
+	}
+	if("refsmethod" in getmap) {
+		var refsm = parseInt(getmap["refsmethod"])
+		refsm = (isNaN(refsm) || refsm > 3 || refsm <1 )?3:refsm;
+		$('#idRefsMethod').val(refsm)
 		$('#idDivDev').show();
 	}
 	if("devline" in getmap)
@@ -1681,6 +1690,10 @@ function rpcheck(jobject,defaultval) {
 
 </script>
 
+<div class="alpha">
+This is an alpha version. <br>
+<span style="font-size:14px;">It means results might be inaccurate or not enough info has been collected to verify the used formula's.</span>
+</div>
 
 <a href="#" onClick="$('#idDivDev').toggle();return false;" style="color:#FEFEFE;font-size:8px;">#######</a>
 <div id="idDivDev" class="hiddenBlock" >
@@ -1692,6 +1705,7 @@ function rpcheck(jobject,defaultval) {
 <tr><td>Stop</td><td><input id="idManStop" value="" /></td></tr>
 <tr><td>Show Latest</td><td><input id="idShowLatest" value="0" /></td></tr>
 <tr><td>Show RealName</td><td><input id="idShowRealName" value="0" /></td></tr>
+<tr><td>Refs Method</td><td><input id="idRefsMethod" value="3" /></td></tr>
 </table>
 </div>
 <div id="idreferences">
@@ -1700,6 +1714,8 @@ Current version : <a href="/releasenotes/">0.4.1</a><br>
 Feedback via <a href="https://twitter.com/intent/tweet?screen_name=tdewin" style="text-decoration:none;">@tdewin</a> or on <a href="https://github.com/tdewin/rps/issues">GitHub</a><br>
 RPS heavily relies on some opensource <a href="#" onclick="showJS();return false;">javascript frameworks</a><br>
 </div>
+
+
 
 <div id="idPopUpDiv" class="hiddenBlock">
 		<p style="text-align: right;margin:1px; background-color:#deffde;"><span id="idVDclose" onclick="$('#idPopUpDiv').hide()" class="cursorPointer">X</span></p>
@@ -2078,6 +2094,10 @@ RPS heavily relies on some opensource <a href="#" onclick="showJS();return false
 			<table id="idTableShowMeHow">
 				<tbody></tbody>
 			</table>
+</div>
+<div class="alpha">
+This is an alpha version. <br>
+<span style="font-size:14px;">It means results might be inaccurate or not enough info has been collected to verify the used formula's.</span>
 </div>
 <div id="idShowMeHowConsole" class="hiddenBlock"  style="vertical-align:top;"  >
 			<table id="idTableShowMeConsole" style="border:1px black solid;">

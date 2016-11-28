@@ -91,6 +91,17 @@ table.inputTable td.fixwidthhalf {
 .alert {
 	color: #E64040;
 }
+.alpha {
+	background-color: #E64040;
+	color: white;
+	font-family:verdana;
+	font-size:30px;
+	padding:20px 20px 20px 20px;
+	margin-left:0px;
+	margin-right:0px;
+	margin-bottom:10px;
+	margin-top: 10px;
+}
 .monthspan {
 	width:30px;
 	display:inline-block;
