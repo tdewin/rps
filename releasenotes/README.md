@@ -1,6 +1,8 @@
-# 0.4:
+# 0.4.1:
 - ReFS algorithm
-
+- Added key down support : <+> key in manual mode to add one run
+- Added key down support : <enter> key in to do a simulation
+- Auto resize the result div to an estimated amount of restore points so that page does not constantly resizes when running in manual mode (will probably not work if table line does not fit window)
 
 # 0.3.3:
 - Active Full on GFS support (v9) feature

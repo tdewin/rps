@@ -370,6 +370,10 @@ function VeeamBackupConfigurationObject(style,simplePoints,sourceSize)
 		var daydiff = childdate.diff(rootdate, 'days')*1.0
 		daydiff = (daydiff < 0)?-daydiff:daydiff;
 		
+		//inject limit is required so that we will not inject more than the actual change rate.
+		//especially important with the method 3 since it grows to fast the first days
+		var injectlimit = ((daydiff)*this.changeRate)/2+(this.changeRate/2)
+		
 		if (this.refs == 1) {
 			if (this.refsMethod == 1) {
 				
@@ -386,25 +390,29 @@ function VeeamBackupConfigurationObject(style,simplePoints,sourceSize)
 				//fooplot function : ((x-1)/365)^(2/3)*(3*5+15)+5
 				//hits 10% at 30 days && 35% at 1year
 				base = this.changeRate
-				if (daydiff > 1) {
-					var powbender = (2/3)
-					base = Math.ceil((Math.pow((daydiff-1)/365,powbender)*(this.changeRate*3 + 15 ))+this.changeRate)
-				} 
+				
+				var powbender = (2/3)
+				base = Math.ceil((Math.pow((daydiff)/365,powbender)*(this.changeRate*3 + 15 ))+this.changeRate)
+				 
 				
 				
 			} else if (this.refsMethod == 3)  {
 				//fooplot function : ((x-1)/365)^(1/3)*(2*10+60)+10            || ((x-1)/365)^(1/3)*(2*5+60)+5
 				//hits 25% at 7 days && 35% at 30 days && 75% at 1 year
+				
 				base = this.changeRate
-				if (daydiff > 1) {
-					var powbender = (1/3)
-					base = Math.ceil((Math.pow((daydiff-1)/365,powbender)*(this.changeRate*2 + 60 ))+this.changeRate)
-					
-				} 				
+				
+				
+				var powbender = (1/3)
+				base = Math.ceil((Math.pow((daydiff)/365,powbender)*(this.changeRate*2 + 60 ))+this.changeRate)
+				//console.log(base) 
 			}
+			
 			
 		} 
 		if (base > 100 || base < 0 || isNaN(base)) { base = 100 }
+		if (base > injectlimit ) { base = injectlimit }
+		if (base < this.changeRate) { base = this.changeRate}
 		return base 
 	}
 	

@@ -25,21 +25,27 @@ var start = moment("2012-12-15 22:00:00")
 
 
 var backupConfiguration = pureEngine.VeeamBackupConfigurationObject(3,14,1000);
-
+backupConfiguration.changeRate = 5
 
 backupConfiguration.refs = 1
-logc(backupConfiguration.refsdiff(start.clone(),start.clone().add(1,"days")),"green");
-logc(backupConfiguration.refsdiff(start.clone(),start.clone().add(1,"weeks")),"green");
-logc(backupConfiguration.refsdiff(start.clone(),start.clone().add(2,"weeks")),"green");
-logc(backupConfiguration.refsdiff(start.clone(),start.clone().add(4,"weeks")),"green");
-logc(backupConfiguration.refsdiff(start.clone(),start.clone().add(1,"month")),"green");
-logc(backupConfiguration.refsdiff(start.clone(),start.clone().add(2,"month")),"green");
-logc(backupConfiguration.refsdiff(start.clone(),start.clone().add(3,"month")),"green");
-logc(backupConfiguration.refsdiff(start.clone(),start.clone().add(4,"month")),"green");
-logc(backupConfiguration.refsdiff(start.clone(),start.clone().add(5,"month")),"green");
-logc(backupConfiguration.refsdiff(start.clone(),start.clone().add(6,"month")),"green");
-logc(backupConfiguration.refsdiff(start.clone(),start.clone().add(1,"years")),"green");
-logc(backupConfiguration.refsdiff(start.clone(),start.clone().add(2,"years")),"green");
-logc(backupConfiguration.refsdiff(start.clone(),start.clone().add(3,"years")),"green");
-logc(backupConfiguration.refsdiff(start.clone(),start.clone().add(4,"years")),"green");
-
+backupConfiguration.refsMethod = 3
+logc("hours 0-24")
+for(var i=0;i<24;i++) {
+	logc(i+": "+backupConfiguration.refsdiffperct(start.clone(),start.clone().add(i,"hours")),"green");
+}
+logc("day 0-30")
+for(var i=0;i<31;i++) {
+	logc(i+": "+backupConfiguration.refsdiffperct(start.clone(),start.clone().add(i,"days")),"green");
+}
+logc("weeks 1-6")
+for(var i=1;i<7;i++) {
+	logc(i+": "+backupConfiguration.refsdiffperct(start.clone(),start.clone().add(i,"weeks")),"green");
+}
+logc("months 1-12")
+for(var i=1;i<13;i++) {
+	logc(i+": "+backupConfiguration.refsdiffperct(start.clone(),start.clone().add(i,"months")),"green");
+}
+logc("years 1-4")
+for(var i=1;i<5;i++) {
+	logc(i+": "+backupConfiguration.refsdiffperct(start.clone(),start.clone().add(i,"years")),"green");
+}
