@@ -363,7 +363,7 @@ function VeeamBackupConfigurationObject(style,simplePoints,sourceSize)
 	VeeamBackupConfigurationObj.simpleYearGrowth = 0
 	
 	VeeamBackupConfigurationObj.refs = 0
-	VeeamBackupConfigurationObj.refsMethod = 3
+	VeeamBackupConfigurationObj.refsMethod = 4
 	
 	VeeamBackupConfigurationObj.refsdiffperct = function (childdate,rootdate) {
 		var base = 100
@@ -372,7 +372,10 @@ function VeeamBackupConfigurationObject(style,simplePoints,sourceSize)
 		
 		//inject limit is required so that we will not inject more than the actual change rate.
 		//especially important with the method 3 since it grows to fast the first days
-		var injectlimit = ((daydiff)*this.changeRate)/2+(this.changeRate/2)
+		//var injectlimit = ((daydiff)*this.changeRate)/2+(this.changeRate/2)
+		var daydiffmin = (daydiff < 1)?1:daydiff;
+		
+		var injectlimit = (daydiffmin)*this.changeRate
 		
 		if (this.refs == 1) {
 			if (this.refsMethod == 1) {
@@ -406,6 +409,26 @@ function VeeamBackupConfigurationObject(style,simplePoints,sourceSize)
 				var powbender = (1/3)
 				base = Math.ceil((Math.pow((daydiff)/365,powbender)*(this.changeRate*2 + 60 ))+this.changeRate)
 				//console.log(base) 
+			} else if (this.refsMethod == 4) {
+
+				if (daydiff < 2 ) {
+					base = this.changeRate
+				} else if(daydiff < 14) { //7+7
+					base = this.changeRate*3
+				} else if (daydiff < 38) { //31+7
+					base = this.changeRate*5
+				} else if (daydiff < 100) { //31*3+7
+					base = this.changeRate*9
+				} else if (daydiff < 193) { //31*6+7
+					base = this.changeRate*12
+				} else if (daydiff < 286) { //31*9+7
+					base = this.changeRate*15
+				} else if (daydiff < 379) { //365+14
+					base = this.changeRate*18
+				} else {
+					base = 100
+				}
+	
 			}
 			
 			
