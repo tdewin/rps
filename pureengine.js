@@ -413,7 +413,7 @@ function VeeamBackupConfigurationObject(style,simplePoints,sourceSize)
 
 				if (daydiff < 2 ) {
 					base = this.changeRate
-				} else if(daydiff < 14) { //7+7
+				} else if(daydiff < 14) { //1 week but less then 2 weeks
 					base = this.changeRate*3
 				} else if (daydiff < 38) { //31+7
 					base = this.changeRate*5
