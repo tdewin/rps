@@ -1579,6 +1579,26 @@ function toggleExport() {
 	return false;
 }
 
+
+function dataGrowthWarning() {
+	var toggle = $('#idDataGrowth').is(':checked')
+	if (toggle) {
+		var warning = "Watch out, please make sure to define an accurate end date for your simulation. Because data will always be bigger in the future, RPS can not guesstimate a potential end date where the worst case scenario has occured. You need to manually align the time with the amount of retention points."
+		var example = "For example, if you configured 60 monthly backups, you would need to simulate for 5 or 6 years so that at least all the retention points have been generated at least once"
+		
+		var tableResult = $("#idTablePopUpDiv")
+		tableResult.empty()
+
+		var table = new gfxTable()
+		table.td(warning)
+		table.tr().td("")
+		table.tr().td(example)
+
+		tableResult.append(table.gettbody())
+		$("#idPopUpDiv").show()
+	}
+}
+
 function toggleDataGrowth()
 {
 	var toggle = $('#idDataGrowth').is(':checked')
@@ -1586,6 +1606,8 @@ function toggleDataGrowth()
 	
 	$('#idDataGrowthRate').prop('disabled',!toggle)
 	$('#idDataGrowthYear').prop('disabled',!(toggle && manrundisabled))
+
+
 }
 function toggleCanvas() {
 	var toggle = $('#idShowCanvas').is(':checked')
@@ -1864,7 +1886,7 @@ RPS heavily relies on some opensource <a href="#" onclick="showJS();return false
 				<option value="1" >Hourly</option>
 			</select>
 			</td><td></td></tr>
-		<tr><td>Time Growth Simulation <input type="checkbox" id="idDataGrowth" onChange="toggleDataGrowth();return false;" ></td>
+		<tr><td>Time Growth Simulation <input type="checkbox" id="idDataGrowth" onChange="toggleDataGrowth();dataGrowthWarning();return false;" ></td>
 			<td class="fixwidthhalf">
 			<select id="idDataGrowthYear" class="alignwidth" disabled>
 				<!-- (1..10) | % { write-host "<option value=""$_"">$_ Year</option>" } -->
