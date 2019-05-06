@@ -1,0 +1,421 @@
+<html>
+<head>
+<title>Copy Data</title>
+
+<!----------
+Using:
+jquery : http://jquery.com/
+Humanizing time : https://github.com/EvanHahn/HumanizeDuration.js <br>
+filesize.js : http://filesizejs.com/ <br>
+uri.js : http://medialize.github.io/URI.js/ <br>
+----->
+
+<style>
+body { background: #eee; }
+body td {
+ font-family: verdana, arial;
+ color: #fff;
+ text-align: center;
+ 
+}
+.tilegrey {
+	background-color:#fdfdfd; 
+}
+.ctr {
+	width:300px;
+	height:300px;
+	text-align: center;
+
+	color: #444444;
+}
+.result {
+	text-align: center;
+	background-color:#55b948;
+	width:350px;
+}
+.greenresult {
+	background-color:#55b948;
+}
+.adder {
+	width:50px;
+}
+.adderbtn {
+	width:45px;;
+	height:140px;
+	font-size:30px;
+	color: #fff;
+	background-color:#888888; 
+	display:inline-block;
+	line-height: 140px;
+	
+	cursor: pointer;
+	-moz-user-select: none;
+}
+.adderbtn:hover {
+	background-color:#666;
+}
+.addergreen {
+	background-color:#44913A;
+}
+.addergreen:hover {
+	background-color:#35732D;
+}
+
+table {
+ border: 0px;
+}
+.headctr {
+  font-size:20px;
+}
+.mainctr {
+  font-size:30px;
+    font-weight: bold;
+}
+.subctr {
+  font-size:25px;
+}
+.cross {
+ height:5px;
+ width:5px;
+}
+</style>
+
+</head>
+<body>
+<center>
+<script src="jquery-2.1.4.min.js"></script>
+<script src="filesize.js"></script>
+<script src="humanize-duration.js"></script>
+<script src="URI.js"></script>
+<script>
+function setMainAndSub(pre,main,sub)
+{
+	$("#"+pre).html(main)
+	$("#"+pre+"sub").html(sub)
+}
+
+function mod(field,modifier)
+{
+	var wfield = gsv()[field]
+	
+	var origval = parseInt(wfield.val)
+	var valset = 0
+	
+	
+	if (wfield.jumpers)
+	{
+		
+		valset = parseInt(origval+modifier)
+		
+		if(valset < 0) { valset = 0 }
+		if(valset > (wfield.jumpers.length-1)) { valset = wfield.jumpers.length-1 }
+	
+		
+		wfield.val = valset
+	}
+	else
+	{
+		valset =  parseInt(origval*modifier)
+		if (valset > 0)
+		{
+			wfield.val = valset
+		} else { wfield.val = 1 }
+	}
+}
+function jumperVal(field)
+{
+	var wfield = gsv()[field]
+	
+	
+	if(wfield.jumpers)
+	{
+		return wfield.jumpers[wfield.val]
+	}
+	return wfield.val
+}
+
+function formatChangeRate(changerate) {
+	if (changerate == 100) { return "Full" }
+	else if (changerate >= 51 ) { return "Extreme" }
+	else if (changerate >= 20 ) { return "DB" }
+	else if (changerate >= 8 ) { return "Normal" }
+	else if (changerate >= 3 ) { return "Optimistic" }
+	else if (changerate >= 0 ) { return "Wishful thinking" }
+	
+	return "Data will be changed"
+}
+function formatReduction(reduction) {
+	if(reduction >= 5) { return "WAN Acceleration" }
+	else if(reduction > 3) { return "Conservative WAN Acceleration" }
+	else if (reduction > 2.5 ) { return "Extreme Compression" }
+	else if (reduction > 1 ) { return "Compression" }
+	else if (reduction == 1) { return "Reduction Disabled" }
+	
+	return "Not reducing"
+}
+function formatTime(time) {
+	if(time >= (3600*24)) { return "Over multiple days" }
+	else if (time > (3600*8)) { return "During business hours" }
+	else if (time > (3600*4)) { return "During the night" }
+	else if (time > 0) { return "Short slot" }
+	
+	return "Don't know negative time"
+}
+
+
+function setText() {
+	var bytesin = parseInt(jumperVal("hiddenSizeBytes"))
+	var reduction = parseFloat(jumperVal("hiddenReduction"))
+	var changerate = parseInt(jumperVal("hiddenChangerate"))
+	var bytestrans = Math.ceil((bytesin/reduction)*(changerate/100))
+	
+	var reverse = gsv()["reverse"]
+	
+	var postbit = "it"
+	var usebit = true
+	if(gsv()["showbytes"]) {
+		postbit = ""
+		usebit = false
+	}
+	
+	setMainAndSub("datasize",filesize(bytesin),"Bytes effectively used not provisioned")
+	setMainAndSub("dreduction",reduction+"x"+" or "+parseInt((100/reduction))+"%",formatReduction(reduction))
+	setMainAndSub("changerate",changerate+"%",formatChangeRate(changerate))
+	
+	var bytespersec = 0
+	var secs = 0
+	
+	if(!reverse)
+	{
+		secs = parseInt(jumperVal("hiddenTimeSec"))
+		bytespersec = Math.ceil(bytestrans/secs)
+		//background sync val so result doesnt look awkward when switching
+		gsv()["hiddenBandwidth"].val = jumpIndex(bytespersec,gsv()["hiddenBandwidth"].jumpers)
+	}
+	else
+	{
+		bytespersec = parseInt(jumperVal("hiddenBandwidth"))
+		secs = Math.ceil(bytestrans/bytespersec)
+		//background sync val so result doesnt look awkward when switching
+		gsv()["hiddenTimeSec"].val = jumpIndex(secs,gsv()["hiddenTimeSec"].jumpers)
+
+	}
+	setMainAndSub("copywindow",humanizeDuration((secs*1000)),formatTime(secs))
+	setMainAndSub("wresult",filesize(bytespersec, {bits: usebit})+postbit+"/s",filesize(bytestrans)+" transferred")
+}
+
+function gsv() {
+	if(window.e58196c3eff14857ab596d5eafdc7369) { return window.e58196c3eff14857ab596d5eafdc7369 }
+	else { 
+		window.e58196c3eff14857ab596d5eafdc7369 = {}
+		return window.e58196c3eff14857ab596d5eafdc7369
+	}
+}
+/*
+
+dirty calculated with :
+
+secs = [1,30]
+$.each([1,2,5,15,30,45],function (ind,val) {
+	secs.push(val*60)
+})
+$.each([1,2,4,6,8,12,16,18,24,36],function (ind,val) {
+	secs.push(val*3600)
+})
+for(var i=2;i<365;i++)
+{
+	secs.push(i*86400)
+}
+alert(secs)
+
+*/
+function jumpIndex(val,jumpers)
+{
+	var index = jumpers.length-1
+	
+	for(;index > 0 && val < jumpers[index];index = index - 1) {}
+	
+	return index
+}
+function checkAndSet(getmap,uriparam,target,mod)
+{
+	if(uriparam in getmap)
+	{
+		var wfield = gsv()[target]
+		var intval = parseFloat(getmap[uriparam])
+		if(mod !== undefined) {
+			intval = mod(intval)
+		}
+		
+		if(wfield.jumpers)
+		{	
+			wfield.val = jumpIndex(intval,wfield.jumpers)
+		}
+		else
+		{
+			wfield.val = intval
+		}
+	}
+}
+
+$( document ).ready(function() {
+	var uri = new URI();
+	var getmap = uri.search(true);
+	var v = gsv();
+	
+	var kb = 1024
+	var mb = 1024*kb
+	var gb = 1024*mb
+	var tb = 1024*gb
+	var pb = 1024*tb
+
+	var bit = 8
+	var kbit = kb*bit
+	var mbit = mb*bit
+	var gbit = gb*bit
+	var tbit = tbit*bit
+	var pbit = pbit*bit	
+	
+	var bitify = 1/8
+	
+	var secs = [1,30,60,120,300,900,1800,2700,3600,7200,14400,21600,28800,43200,57600,64800,86400,129600,172800,259200,345600,432000,518400,604800,691200,777600,864000,950400,1036800,1123200,1209600,1296000,1382400,1468800,1555200,1641600,1728000,1814400,1900800,1987200,2073600,2160000,2246400,2332800,2419200,2505600,2592000,2678400,2764800,2851200,2937600,3024000,3110400,3196800,3283200,3369600,3456000,3542400,3628800,3715200,3801600,3888000,3974400,4060800,4147200,4233600,4320000,4406400,4492800,4579200,4665600,4752000,4838400,4924800,5011200,5097600,5184000,5270400,5356800,5443200,5529600,5616000,5702400,5788800,5875200,5961600,6048000,6134400,6220800,6307200,6393600,6480000,6566400,6652800,6739200,6825600,6912000,6998400,7084800,7171200,7257600,7344000,7430400,7516800,7603200,7689600,7776000,7862400,7948800,8035200,8121600,8208000,8294400,8380800,8467200,8553600,8640000,8726400,8812800,8899200,8985600,9072000,9158400,9244800,9331200,9417600,9504000,9590400,9676800,9763200,9849600,9936000,10022400,10108800,10195200,10281600,10368000,10454400,10540800,10627200,10713600,10800000,10886400,10972800,11059200,11145600,11232000,11318400,11404800,11491200,11577600,11664000,11750400,11836800,11923200,12009600,12096000,12182400,12268800,12355200,12441600,12528000,12614400,12700800,12787200,12873600,12960000,13046400,13132800,13219200,13305600,13392000,13478400,13564800,13651200,13737600,13824000,13910400,13996800,14083200,14169600,14256000,14342400,14428800,14515200,14601600,14688000,14774400,14860800,14947200,15033600,15120000,15206400,15292800,15379200,15465600,15552000,15638400,15724800,15811200,15897600,15984000,16070400,16156800,16243200,16329600,16416000,16502400,16588800,16675200,16761600,16848000,16934400,17020800,17107200,17193600,17280000,17366400,17452800,17539200,17625600,17712000,17798400,17884800,17971200,18057600,18144000,18230400,18316800,18403200,18489600,18576000,18662400,18748800,18835200,18921600,19008000,19094400,19180800,19267200,19353600,19440000,19526400,19612800,19699200,19785600,19872000,19958400,20044800,20131200,20217600,20304000,20390400,20476800,20563200,20649600,20736000,20822400,20908800,20995200,21081600,21168000,21254400,21340800,21427200,21513600,21600000,21686400,21772800,21859200,21945600,22032000,22118400,22204800,22291200,22377600,22464000,22550400,22636800,22723200,22809600,22896000,22982400,23068800,23155200,23241600,23328000,23414400,23500800,23587200,23673600,23760000,23846400,23932800,24019200,24105600,24192000,24278400,24364800,24451200,24537600,24624000,24710400,24796800,24883200,24969600,25056000,25142400,25228800,25315200,25401600,25488000,25574400,25660800,25747200,25833600,25920000,26006400,26092800,26179200,26265600,26352000,26438400,26524800,26611200,26697600,26784000,26870400,26956800,27043200,27129600,27216000,27302400,27388800,27475200,27561600,27648000,27734400,27820800,27907200,27993600,28080000,28166400,28252800,28339200,28425600,28512000,28598400,28684800,28771200,28857600,28944000,29030400,29116800,29203200,29289600,29376000,29462400,29548800,29635200,29721600,29808000,29894400,29980800,30067200,30153600,30240000,30326400,30412800,30499200,30585600,30672000,30758400,30844800,30931200,31017600,31104000,31190400,31276800,31363200,31449600]
+	var reduc = [1,1.25,1.5,1.75,2,2.25,2.5,2.75,3,3.5,4,5,6,7,8,9,10,12.5,15,17.5,20,25,30,45,50,60,70,80,90,100,120,140,160,180,200]
+	
+	var changerate = [1,2,3,4,5,6,7,8,9,10,12,15,20,25,30,45,50,60,70,80,90,100]
+	
+	var datainput = [500*kb,600*kb,700*kb,800*kb,900*kb,
+		mb,10*mb,20*mb,30*mb,40*mb,50*mb,75*mb,100*mb,150*mb,200*mb,300*mb,400*mb,500*mb,600*mb,700*mb,800*mb,900*mb,
+		gb,1.5*gb,2*gb,3*gb,4*gb,5*gb,7.5*gb,10*gb,15*gb,20*gb,50*gb,100*gb,150*gb,200*gb,300*gb,400*gb,500*gb,600*gb,700*gb,800*gb,900*gb,
+		tb,1.5*tb,2*tb,3*tb,4*tb,5*tb,7.5*tb,10*tb,15*tb,20*tb,50*tb,100*tb,150*tb,200*tb,300*tb,400*tb,500*tb,600*tb,700*tb,800*tb,900*tb,
+		pb]
+	
+	//in the calculator, the result is internally stored as a bytes per sec but showed as bit persec in the final presentation. So to show 1Mbit we need to configure 128KByte/s or 1MByte/8
+	var bandwidthinput = [1*mb*bitify,2*mb*bitify,3*mb*bitify,4*mb*bitify,5*mb*bitify,6*mb*bitify,8*mb*bitify,10*mb*bitify,12*mb*bitify,15*mb*bitify,20*mb*bitify,25*mb*bitify,30*mb*bitify,35*mb*bitify,40*mb*bitify,45*mb*bitify,50*mb*bitify,60*mb*bitify,70*mb*bitify,80*mb*bitify,90*mb*bitify,100*mb*bitify,110*mb*bitify,120*mb*bitify,130*mb*bitify,140*mb*bitify,150*mb*bitify,160*mb*bitify,170*mb*bitify,180*mb*bitify,190*mb*bitify,200*mb*bitify,
+		225*mb*bitify,250*mb*bitify,275*mb*bitify,300*mb*bitify,
+		350*mb*bitify,400*mb*bitify,450*mb*bitify,500*mb*bitify,
+		600*mb*bitify,700*mb*bitify,800*mb*bitify,900*mb*bitify,1*gb*bitify,2*gb*bitify,3*gb*bitify,4*gb*bitify,5*gb*bitify,6*gb*bitify,7*gb*bitify,8*gb*bitify,9*gb*bitify,10*gb*bitify,20*gb*bitify,30*gb*bitify,40*gb*bitify
+		]
+	
+	gsv()["showbytes"] = false;
+	if ("showbytes" in getmap) {
+		gsv()["showbytes"] = true;
+	}
+	
+	gsv()["hiddenTimeSec"] = { 
+		val:$.inArray((3600*8),secs),
+		jumpers:secs
+	}
+	
+	gsv()["hiddenSizeBytes"] = { 
+		val:$.inArray(tb,datainput),
+		jumpers:datainput
+	}
+	gsv()["hiddenReduction"] = {
+		val:$.inArray(2,reduc),
+		jumpers: reduc
+	}
+	gsv()["hiddenChangerate"] = {
+		val:$.inArray(100,changerate),
+		jumpers: changerate
+	}	
+	gsv()["hiddenBandwidth"] = {
+		val:0,
+		jumpers: bandwidthinput
+	}		
+	
+	checkAndSet(getmap,"b","hiddenSizeBytes")
+	checkAndSet(getmap,"tb","hiddenSizeBytes",function(modval) { return (modval*tb)})
+	checkAndSet(getmap,"r","hiddenReduction")
+	checkAndSet(getmap,"d","hiddenChangerate")
+	
+	//connection
+	if("c" in getmap || "mbits" in getmap)
+	{
+		gsv()["reverse"] = true
+		checkAndSet(getmap,"c","hiddenBandwidth")
+		checkAndSet(getmap,"mbits","hiddenBandwidth",function(modval) { return (modval*mb*bitify)})
+		setText()
+	}
+	else {
+		gsv()["reverse"] = false
+		checkAndSet(getmap,"t","hiddenTimeSec")
+		checkAndSet(getmap,"hours","hiddenTimeSec",function(modval) { return (modval*3600)})
+		setText()
+	}
+});
+</script>
+<table cellspacing="0" cellpadding="0">
+	<tr>
+		<td rowspan="2" class="ctr tilegrey">
+			<span class="headctr">Copy Window</span><br>
+			<span class="mainctr" id="copywindow">0</span><br>
+			<span class="subctr" id="copywindowsub">hour</span><br>
+		</td>
+		
+		<td class="adder tilegrey"><div class="adderbtn" onclick="gsv()['reverse']=false;mod('hiddenTimeSec',1);setText();">+</div></td>	
+		
+		<td rowspan="5" class="cross"></td>
+		
+		<td rowspan="2" class="ctr tilegrey">
+			<span class="headctr">Data Size</span><br>
+			<span class="mainctr" id="datasize">0</span><br>
+			<span class="subctr" id="datasizesub">TB</span><br>
+		</td>
+		
+		<td class="adder tilegrey"><div class="adderbtn"  onclick="mod('hiddenSizeBytes',1);setText();">+</div></td>
+		
+		<td rowspan="5" class="cross"></td>
+		
+		<td rowspan="5" colspan="2" class="result">
+			<span class="headctr">WAN</span><br>
+			<span class="mainctr" id="wresult" >0</span><br>
+			<span class="subctr" id="wresultsub">MBit/s</span><br>
+		</td>
+		
+		<td class="adder greenresult"><div class="adderbtn addergreen"  onclick="gsv()['reverse']=true;mod('hiddenBandwidth',1);setText();">+</div></td>
+	</tr>
+	<tr>
+		<!--1rwspan-->
+		<td class="adder tilegrey"><div class="adderbtn" onclick="gsv()['reverse']=false;mod('hiddenTimeSec',-1);setText();">-</div></td>
+		<!----------3border --->
+		<!--4rwspan-->
+		<td class="adder tilegrey"><div class="adderbtn"  onclick="mod('hiddenSizeBytes',-1);setText();">-</div></td>
+		<!----------6border --->
+		<!----------7result --->
+		<td class="adder greenresult"><div class="adderbtn addergreen"  onclick="gsv()['reverse']=true;mod('hiddenBandwidth',-1);setText();">-</div></td>
+		
+	</tr>
+	<tr><td colspan="7" class="cross"></td><td rowspan="3" class="greenresult"/></tr>
+	<tr>
+		<td rowspan="2" class="ctr tilegrey">
+			<span class="headctr">Data Reduction</span><br>
+			<span class="mainctr" id="dreduction">0</span><br>
+			<span class="subctr" id="dreductionsub">x Times</span><br>
+		</td>
+		<td class="adder tilegrey"><div class="adderbtn"  onclick="mod('hiddenReduction',1);setText();">+</div></td>	
+		<!----------3border --->
+		<td rowspan="2" class="ctr tilegrey">
+			<span class="headctr">Change Rate</span><br>
+			<span class="mainctr" id="changerate">0</span><br>
+			<span class="subctr" id="changeratesub">%</span><br>
+		</td>
+		<td class="adder tilegrey"><div class="adderbtn"  onclick="mod('hiddenChangerate',1);setText();">+</div></td>	
+		<!----------6border --->
+		<!----------7result --->
+		<!----------8result no buttons -->
+	</tr>
+	<tr>
+		<!--1rwspan-->
+		<td class="adder tilegrey"><div class="adderbtn" onclick="mod('hiddenReduction',-1);setText();">-</div></td>
+		<!----------3border --->
+		<!--4rwspan-->
+		<td class="adder tilegrey"><div class="adderbtn" onclick="mod('hiddenChangerate',-1);setText();">-</div></td>
+		<!----------6border --->
+		<!----------7result --->
+		<!----------8result no buttons -->
+	</tr>
+</table>
+
+</center>
+</body>
+</html>
