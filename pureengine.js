@@ -27,6 +27,8 @@ VeeamBackupFile:
 	gfstype Y = vbk weekly
 	
 	
+	stub = point that is in the cloud
+
 	pointids should be recalculated after every run and not be heavily used (or only after a good recalculation) as they are more informative then actually values
 	
 	As special instance is the null object to identify empty objects
@@ -84,12 +86,18 @@ function VeeamBackupDataStats(f,s,c,d,t)
 		transferCompression:t,
 		changeRate:d,
 		refsLinked:0,
+		stub:0,
 		f:function () { 
-			if (this.refsLinked) {
-				return this.file-this.refsLinked.discount
+			if (this.stub) {
+				return 32*1024*1024
 			} else {
-				return this.file 
+				if (this.refsLinked) {
+					return this.file-this.refsLinked.discount
+				} else {
+					return this.file 
+				}
 			}
+
 		},
 		s:function () { return this.source },
 		c:function () { return this.compression },
@@ -101,6 +109,7 @@ function VeeamBackupDataStats(f,s,c,d,t)
 			{
 				clone.refsLinked = ReFSLinked(""+this.refsLinked.linkedpoint,this.refsLinked.discount)
 			}
+			clone.stub = this.stub
 			return clone  },
 		fullclone:function () {
 			var clone = VeeamBackupDataStats(this.source*(this.compression/100),this.source,this.compression,100,this.transferCompression);
@@ -108,6 +117,7 @@ function VeeamBackupDataStats(f,s,c,d,t)
 			{
 				clone.refsLinked = ReFSLinked(""+this.refsLinked.linkedpoint,this.refsLinked.discount)
 			}
+			clone.stub = this.stub
 			return clone
 		},
 		sd:function () { return parseInt((this.source*this.changeRate)/100) },
@@ -364,6 +374,7 @@ function VeeamBackupConfigurationObject(style,simplePoints,sourceSize)
 	
 	VeeamBackupConfigurationObj.refs = 0
 	VeeamBackupConfigurationObj.refsMethod = 4
+
 	
 	VeeamBackupConfigurationObj.refsdiffperct = function (childdate,rootdate) {
 		var base = 100
@@ -439,7 +450,10 @@ function VeeamBackupConfigurationObject(style,simplePoints,sourceSize)
 		return base 
 	}
 	
-	
+	VeeamBackupConfigurationObj.capacityTierCopy = 1
+	VeeamBackupConfigurationObj.capacityTierMove = 1
+	VeeamBackupConfigurationObj.capacityTierMoveDays = 30
+
 	var tb = (1024*1024*1024*1024)
 	
 	VeeamBackupConfigurationObj.buckets = []
@@ -643,6 +657,7 @@ function VeeamBackupResultObject()
 	var VeeamBackupResultObj = new Object();	
 	VeeamBackupResultObj.retention = []
 	VeeamBackupResultObj.GFS = []
+	VeeamBackupResultObj.capacityTier = []
 	VeeamBackupResultObj.garbage = []
 	VeeamBackupResultObj.workingSpace = 0
 	VeeamBackupResultObj.totalSize = 0
@@ -662,7 +677,9 @@ function VeeamBackupResultObject()
 	VeeamBackupResultObj.worstCaseDayRetention = []
 	VeeamBackupResultObj.worstCaseDayGFS = []
 
-	
+	VeeamBackupResultObj.worstCaseCapacityTierSize = 0
+	VeeamBackupResultObj.worstCaseCapacityTier = []
+	VeeamBackupResultObj.worstCaseCapacityTierDay = 0
 
 	
 	VeeamBackupResultObj.lastActions = []
@@ -2269,6 +2286,77 @@ function VeeamPureEngine()
 		return predict
 	}
 
+	PureEngineObj.uploadCapacityTier = function(backupConfiguration,backupResult,exectime)
+	{
+		//VeeamBackupConfigurationObj.capacityTierCopy = 1
+		//VeeamBackupConfigurationObj.capacityTierMove = 1
+		//VeeamBackupConfigurationObj.capacityTierMoveDays = 30
+		// VeeamBackupResultObj.capacityTier
+		// VeeamBackupFileObjectInheritable
+		// VeeamBackupResultObject()
+		
+		if (backupConfiguration.capacityTierCopy == 1) {
+			
+		}
+		if (backupConfiguration.capacityTierMove  == 1) {
+			var donotmoveolderthen = 0
+			var ret = backupResult.retention
+			var gfs = backupResult.GFS
+
+			var newRet = []
+			var newGFS = []
+
+			var movedate = exectime.clone().subtract(backupConfiguration.capacityTierMoveDays, 'days');
+
+			if(backupConfiguration.style == 1 || backupConfiguration.style == 3) {
+				var gotFull = false
+				//look for the first full so that we can ignore everything before and the full itself
+				for(var counter=ret.length-1;counter >= 0 && !gotFull;counter = counter -1 ) {
+					var point = ret[counter]
+					if (point.isVBK()) {
+						donotmoveolderthen = counter
+						gotFull = true
+							
+					} 
+				}
+			} else if (backupConfiguration.style == 2) {
+				donotmoveolderthen = ret.length - 3
+			}
+	
+			for(var counter=ret.length-1;counter >= 0;counter = counter -1 )
+			{
+				//console.log(counter+" vs "+donotmoveolderthen+" "+(counter > donotmoveolderthen))
+				var point = ret[counter]
+				if (counter >= donotmoveolderthen) {
+					newRet.unshift(point)
+				} else {
+					var point = ret[counter]
+					if (point.pointDate <= movedate) {
+						//bring to the cloud, whatever that means
+						point.dataStats.stub = 1
+						newRet.unshift(point)
+						//console.log("moving stuff")
+					} else {
+						newRet.unshift(point)
+					}
+				}
+			}
+			
+			
+			for(var counter=0;counter < gfs.length;counter = counter +1 )
+			{
+				var point = gfs[counter]
+
+				if (point.pointDate <= movedate) {
+					point.dataStats.stub = 1
+				}
+				newGFS.push(point)
+			}
+			backupResult.retention = newRet
+			backupResult.GFS = newGFS
+
+		}
+	}
 	
 	PureEngineObj.run = function(backupConfiguration,backupResult,exectime,steptime,halttime)
 	{
@@ -2298,8 +2386,10 @@ function VeeamPureEngine()
 				backupResult.retentionPush(fullbackup)
 				backupResult.addLastAction(VeeamBackupLastActionObject(0,"Created VBK / SEQ 1x I/O Write / 1x "+ this.humanReadableFilesize(fullbackup.getDataStats().f())))
 				
-				exectime = exectime.add(steptime)
+				
+				this.uploadCapacityTier(backupConfiguration,backupResult,exectime.clone())
 				this.worstCase(backupConfiguration,backupResult,exectime.clone())
+				exectime = exectime.add(steptime)
 				
 			}
 			
@@ -2399,6 +2489,8 @@ function VeeamPureEngine()
 						}
 						//this.debugln(activeAlreadyDone.active.isnull() +" "+ activeAlreadyDone.synthetic.isnull() +" "+  this.testSyntheticFull(exectime.clone(),backupConfiguration),1)
 					}
+
+					this.uploadCapacityTier(backupConfiguration,backupResult,exectime.clone())
 					this.doRecycle(backupResult,backupConfiguration,exectime.clone())
 					
 					//worst case verification
@@ -2451,7 +2543,7 @@ function VeeamPureEngine()
 						}
 					}
 					backupResult.retentionPush(newpoint)
-					
+					this.uploadCapacityTier(backupConfiguration,backupResult,exectime.clone())
 					this.doRecycle(backupResult,backupConfiguration,exectime.clone())
 					
 					//worst case verification
@@ -2511,7 +2603,7 @@ function VeeamPureEngine()
 							this.mergeVBK(backupResult,backupConfiguration,exectime.clone())
 						}
 						
-						
+						this.uploadCapacityTier(backupConfiguration,backupResult,exectime.clone())
 						this.doRecycle(backupResult,backupConfiguration,exectime.clone())
 						
 						//worst case verification

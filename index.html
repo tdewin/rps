@@ -4,6 +4,7 @@
 <link rel="stylesheet" type="text/css" href="pureengine.css">
 <link href="jquery-ui.css" rel="stylesheet">
 <script>
+ var track = function() {
   (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
   (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
   m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
@@ -11,7 +12,9 @@
 
   ga('create', 'UA-58327247-1', 'auto');
   ga('send', 'pageview');
-
+}
+//false if dev local
+if (false) { track() }
 </script>
 </head>
 <body class="mainfont">
@@ -58,16 +61,21 @@ function showInputsWithDefaults(style,forceDefaults)
 	
 	if(style == 1)
 	{
-		$( "#idDivForward" ).show()
+		$("#idDivForward").show()
+		$("#idFSOptions").show()
 	}
 	else if (style == 2)
 	{
 		$( "#idDivReverse" ).show()
+		$("#idFSOptions").show()
 	}
 	else if (style == 3)
 	{
 		$( "#idDivBCJ" ).show()
+		$("#idFSOptions").show()
 	}
+
+	
 	
 }
 function getSelScen()
@@ -113,6 +121,9 @@ function scenario(name,style)
 	this.retention = 14
 	this.size = 1000
 	this.refs = 0
+	this.capacityTierCopy = 0
+	this.capacityTierMove = 0
+	this.capacityTierMoveDays = 30
 	this.compression = 50
 	this.changeRate = 10
 	this.synthetic = [0,0,0,0,0,0,0]
@@ -419,6 +430,64 @@ function mappings()
 	}
 	mappingsLocal[mappingObj.variable] = mappingObj
 	
+	//capacitytier
+	mappingObj = new mapping("#idCapacityTierCopyEnabled","capacityTierCopy",0)
+	mappingObj.convert = function() { return $(this.id).is(':checked') }
+	mappingObj.urivar = "ctce"
+	mappingObj.copySwitch = 1
+	mappingObj.guival = function() {
+		return ($(this.id).is(':checked')?1:0)
+	}
+	mappingObj.setDefault = function() {
+		var scenario = mappingsLocal["scenario"].convert()
+		var value = scenario[this.variable]
+		var jqselect = this.id
+		
+		if(value == 1)
+		{
+			$(jqselect).prop("checked",true)
+		}
+		else 
+		{
+			$(jqselect).prop("checked",false)
+		}
+	}
+	mappingsLocal[mappingObj.variable] = mappingObj
+
+	mappingObj = new mapping("#idCapacityTierMoveEnabled","capacityTierMove",0)
+	mappingObj.convert = function() { return $(this.id).is(':checked') }
+	mappingObj.urivar = "ctme"
+	mappingObj.copySwitch = 1
+	mappingObj.guival = function() {
+		return ($(this.id).is(':checked')?1:0)
+	}
+	mappingObj.setDefault = function() {
+		var scenario = mappingsLocal["scenario"].convert()
+		var value = scenario[this.variable]
+		var jqselect = this.id
+		
+		if(value == 1)
+		{
+			$(jqselect).prop("checked",true)
+		}
+		else 
+		{
+			$(jqselect).prop("checked",false)
+		}
+	}
+	mappingsLocal[mappingObj.variable] = mappingObj
+
+
+	mappingObj = new mapping("#idCapacityTierMoveDays","capacityTierMoveDays",0)
+	mappingObj.urivar = "ctmd"
+	mappingObj.copySwitch = 1
+	mappingObj.convert = convertInt
+	mappingObj.setDefault = function() {
+		var scenario = mappingsLocal["scenario"].convert()
+		 $(this.id).val(scenario[this.variable])
+	}
+	mappingsLocal[mappingObj.variable] = mappingObj	
+
 	var checkboxUncheck = function()
 	{
 		$.each($("input[id^="+this.id+"]"), function(key,checkbox) {
@@ -1195,7 +1264,9 @@ function simulateDoWork() {
 	backupConfiguration["changeRate"] = gsv.mappings["changeRate"].convert()
 	backupConfiguration["compression"] = gsv.mappings["compression"].convert()
 	backupConfiguration["refs"] = gsv.mappings["refs"].convert()
-	
+	backupConfiguration["capacityTierCopy"] = gsv.mappings["capacityTierCopy"].convert()
+	backupConfiguration["capacityTierMove"] = gsv.mappings["capacityTierMove"].convert()
+	backupConfiguration["capacityTierMoveDays"] = gsv.mappings["capacityTierMoveDays"].convert()
 	
 	$.each(gsv.mappings,function(key,mapping) {
 		if(mapping.applicable == backupstyle)
@@ -1437,10 +1508,18 @@ $( document ).ready(function() {
 
 	checkURIParameter(uriscenario,getmap,"gaf","GFSActiveFull",intfunction)
 	
+
 	checkURIParameter(uriscenario,getmap,"re","refs",function(enablestring,scenario) {
 		var toReturn = parseInt(enablestring); if(isNaN(toReturn)) { toReturn = 0 };return toReturn
 	})
-	
+	checkURIParameter(uriscenario,getmap,"ctce","capacityTierCopy",function(enablestring,scenario) {
+		var toReturn = parseInt(enablestring); if(isNaN(toReturn)) { toReturn = 0 };return toReturn
+	})
+	checkURIParameter(uriscenario,getmap,"ctme","capacityTierMove",function(enablestring,scenario) {
+		var toReturn = parseInt(enablestring); if(isNaN(toReturn)) { toReturn = 0 };return toReturn
+	})	
+	checkURIParameter(uriscenario,getmap,"ctmd","capacityTierMoveDays",intfunction)
+
 	//legacy parameters
 	checkURIParameter(uriscenario,getmap,"used","size",intfunction)
 	checkURIParameter(uriscenario,getmap,"rp","retention",intfunction)
@@ -1784,11 +1863,12 @@ This is an alpha version. <br>
 </div>
 <div id="idreferences">
 <h1>The Restore Point Simulator</h1>
-Current version : <a href="/releasenotes/">0.4.1</a><br> 
+Current version : <a href="/releasenotes/">0.5.0 Broken</a><br> 
 Feedback via <a href="https://twitter.com/intent/tweet?screen_name=tdewin" style="text-decoration:none;">@tdewin</a> or on <a href="https://github.com/tdewin/rps/issues">GitHub</a><br>
 RPS heavily relies on some opensource <a href="#" onclick="showJS();return false;">javascript frameworks</a><br>
 </div>
 
+<h1 style="color: red;">This is a broken build!</h1>
 
 
 <div id="idPopUpDiv" class="hiddenBlock">
@@ -2031,13 +2111,7 @@ RPS heavily relies on some opensource <a href="#" onclick="showJS();return false
 			</td>
 			<td><img src="rpsimg/help.png"  class="cursorPointer" onclick="showHelp('Time Growth',['This allows you to simulate a continuous data growth on a daily basis. The first parameter defines how long you want to run the simulation. The second parameter defines the yearly data growth in percentages.','Imagine, you have 1000GB of source data and a time growth factor of 10%. If you execute a simulation for 3 years, the data growth will be calculated by using the following formula : 1000*(1+10%)^1095/365 = 1000*1.1^3 = 1000*1.1*1.1*1.1 = 1331GB. You can easily test this by disabling data reduction (select 100%) and selecting reverse incremental.']);return false;"/></td>
 		</tr>
-		<tr>
-			<td>ReFS <input type="checkbox" id="idReFSEnabled"></td>
-			<td>
-				
-			</td>
-			<td></td>
-		</tr>
+		
 		<!--<tr><td>Start Date</td><td>
 			<select id="idStart" class="alignwidth">
 				<option value="Tomorrow" >Tomorrow At 22</option>
@@ -2045,6 +2119,31 @@ RPS heavily relies on some opensource <a href="#" onclick="showJS();return false
 				<option value="FirstOfYear" >First Of Next Year At 22</option>
 			</select>
 		</td><td></td></tr>-->
+	</table>
+</div>
+<div id="idFSOptions" class="inputSpecific hiddenBlock">
+	<table class="inputTable">
+		<tr>
+			<td class="fixwidth">ReFS <input type="checkbox" id="idReFSEnabled"></td>
+			<td class="fixwidth" colspan="2">
+				
+			</td>
+			<td></td>
+		</tr>
+		<tr>
+			<td>Capacity Tier Copy <input type="checkbox" id="idCapacityTierCopyEnabled"></td>
+			<td colspan="2">
+				
+			</td>
+			<td></td>
+		</tr>
+		<tr>
+			<td>Capacity Tier Move <input type="checkbox" id="idCapacityTierMoveEnabled"></td>
+			<td colspan="2">
+				<input class="alignwidth" type="text" id="idCapacityTierMoveDays" value="30" onchange="return false" ></input>
+			</td>
+			<td></td>
+		</tr>
 	</table>
 </div>
 <div id="idDivForward" class="inputSpecific hiddenBlock" >
