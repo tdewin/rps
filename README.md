@@ -1,3 +1,9 @@
+# Notice !
+Please notice that there is an official effort in place on:
+https://calculator.veeam.com/vbr/
+
+As such, this project is now deprecated
+
 # RPS
 Restore Point Simulator for Veeam
 
